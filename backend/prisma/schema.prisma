@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  passwordHash String
+  fullName     String
+  role         String
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  ordersOpened Order[]   @relation("UserOpenedOrders")
+  payments     Payment[]
+}
+
+model DiningTable {
+  id        String   @id @default(uuid())
+  name      String
+  area      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+model MenuCategory {
+  id        String     @id @default(uuid())
+  name      String
+  sortOrder Int        @default(0)
+  items     MenuItem[]
+  createdAt DateTime   @default(now())
+}
+
+model MenuItem {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  basePrice   Float
+  sku         String?
+  isActive    Boolean      @default(true)
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+  createdAt   DateTime     @default(now())
+}
+
+model Order {
+  id             String   @id @default(uuid())
+  type           String
+  status         String   @default("open")
+  notes          String?
+
+  subtotal       Float
+  discountAmount Float    @default(0)
+  taxAmount      Float    @default(0)
+  serviceCharge  Float    @default(0)   // ← ADD THIS LINE
+  total          Float
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  diningTableId String?
+  table         DiningTable? @relation(fields: [diningTableId], references: [id])
+
+  openedByUserId String
+  openedByUser   User   @relation("UserOpenedOrders", fields: [openedByUserId], references: [id])
+
+  items    OrderItem[]
+  payments Payment[]
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  amount    Float
+  method    String
+  kind      String   @default("payment") // ✅ NEW: "payment" | "refund"
+  note      String?
+  createdAt DateTime @default(now())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  createdBy String
+  user      User   @relation(fields: [createdBy], references: [id])
+}
+

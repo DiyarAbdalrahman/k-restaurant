@@ -1340,20 +1340,20 @@ export default function PosPage() {
       {/* Body */}
       <div
         className={[
-          "grid grid-cols-1 xl:grid-cols-12",
+          "grid grid-cols-1 xl:grid-cols-12 overflow-x-hidden",
           compactMode
             ? "gap-3 p-3 min-h-[calc(100vh-72px)] xl:h-[calc(100vh-72px)]"
             : "gap-4 p-4 min-h-[calc(100vh-81px)] xl:h-[calc(100vh-81px)]",
         ].join(" ")}
       >
         {/* LEFT: tables + orders */}
-        <aside className="order-1 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
+        <aside className="order-3 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
           <div className={["border-b border-white/10", compactMode ? "px-3 py-2" : "px-4 py-3"].join(" ")}>
             <div className={["font-semibold", compactMode ? "text-xs" : "text-sm"].join(" ")}>Tables</div>
             <div className="text-xs text-white/60">Tap to select / deselect</div>
           </div>
 
-          <div className={["space-y-4 overflow-y-auto", compactMode ? "p-3" : "p-4"].join(" ")}>
+          <div className={["space-y-4 overflow-y-auto overscroll-contain touch-pan-y", compactMode ? "p-3" : "p-4"].join(" ")}>
             <div
               className={[
                 "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-3",
@@ -1504,7 +1504,7 @@ export default function PosPage() {
         {/* MIDDLE: categories + items */}
         <main
           className={[
-            "order-2 xl:order-none rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col md:flex-row",
+            "order-1 xl:order-none rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col md:flex-row",
             showRight || cart.length > 0 || selectedOrder
               ? "col-span-12 xl:col-span-6"
               : "col-span-12 xl:col-span-9",
@@ -1519,7 +1519,7 @@ export default function PosPage() {
 
             <div
               className={[
-                "flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto flex-1",
+                "flex flex-col gap-2 overflow-y-auto overscroll-contain touch-pan-y flex-1",
                 compactMode ? "p-1.5" : "p-2",
               ].join(" ")}
             >
@@ -1541,7 +1541,7 @@ export default function PosPage() {
                       setSearch("");
                     }}
                     className={[
-                      "w-full md:w-full min-w-[140px] md:min-w-0 text-left rounded-xl transition border active:scale-[0.99]",
+                      "w-full text-left rounded-xl transition border active:scale-[0.99]",
                       compactMode ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm",
                       active
                         ? "bg-red-500/15 border-red-500/40"
@@ -1609,7 +1609,7 @@ export default function PosPage() {
               )}
             </div>
 
-            <div className={["overflow-y-auto space-y-4", compactMode ? "p-3" : "p-4"].join(" ")}>
+            <div className={["overflow-y-auto overscroll-contain touch-pan-y space-y-4", compactMode ? "p-3" : "p-4"].join(" ")}>
               {/* Favorites + Recent (no horizontal scroll) */}
               {((settings?.posShowFavorites !== false && favoriteItems.length > 0) ||
                 (settings?.posShowRecent !== false && recent.length > 0)) && (
@@ -1687,10 +1687,10 @@ export default function PosPage() {
                 <div
                   className={[
                     settings?.posMenuCardSize === "lg"
-                      ? "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
+                      ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
                       : settings?.posMenuCardSize === "sm"
-                      ? "grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5"
-                      : "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4",
+                      ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+                      : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
                     compactMode ? "gap-2" : "gap-3",
                   ].join(" ")}
                 >
@@ -1775,7 +1775,7 @@ export default function PosPage() {
 
         {/* RIGHT: cart + checkout */}
         {(panelLocked || showRight || cart.length > 0 || selectedOrder) && (
-          <aside className="order-3 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
+          <aside className="order-2 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
           {/* CART HEADER */}
           <div className={["border-b border-white/10 bg-black/10", compactMode ? "p-3" : "p-4"].join(" ")}>
             <div className="flex items-center justify-between">
@@ -1827,7 +1827,7 @@ export default function PosPage() {
           </div>
 
           {/* BODY */}
-          <div className={["overflow-y-auto flex-1", compactMode ? "p-3" : "p-4"].join(" ")}>
+          <div className={["overflow-y-auto overscroll-contain touch-pan-y flex-1", compactMode ? "p-3" : "p-4"].join(" ")}>
             {/* If checking out an existing order */}
             {selectedOrder ? (
               <div className="space-y-3">

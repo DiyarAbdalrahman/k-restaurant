@@ -1340,19 +1340,26 @@ export default function PosPage() {
       {/* Body */}
       <div
         className={[
-          "grid grid-cols-12",
-          compactMode ? "gap-3 p-3 h-[calc(100vh-72px)]" : "gap-4 p-4 h-[calc(100vh-81px)]",
+          "grid grid-cols-1 xl:grid-cols-12",
+          compactMode
+            ? "gap-3 p-3 min-h-[calc(100vh-72px)] xl:h-[calc(100vh-72px)]"
+            : "gap-4 p-4 min-h-[calc(100vh-81px)] xl:h-[calc(100vh-81px)]",
         ].join(" ")}
       >
         {/* LEFT: tables + orders */}
-        <aside className="col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
+        <aside className="order-1 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
           <div className={["border-b border-white/10", compactMode ? "px-3 py-2" : "px-4 py-3"].join(" ")}>
             <div className={["font-semibold", compactMode ? "text-xs" : "text-sm"].join(" ")}>Tables</div>
             <div className="text-xs text-white/60">Tap to select / deselect</div>
           </div>
 
           <div className={["space-y-4 overflow-y-auto", compactMode ? "p-3" : "p-4"].join(" ")}>
-            <div className={["grid grid-cols-3", compactMode ? "gap-1.5" : "gap-2"].join(" ")}>
+            <div
+              className={[
+                "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-3",
+                compactMode ? "gap-1.5" : "gap-2",
+              ].join(" ")}
+            >
               {[...tables]
                 .sort((a, b) => {
                   const an = Number(String(a.name).replace(/\D/g, "")) || 0;
@@ -1495,15 +1502,27 @@ export default function PosPage() {
         </aside>
 
         {/* MIDDLE: categories + items */}
-        <main className={["rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex", showRight || cart.length > 0 || selectedOrder ? "col-span-6" : "col-span-9"].join(" ")}>
+        <main
+          className={[
+            "order-2 xl:order-none rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col md:flex-row",
+            showRight || cart.length > 0 || selectedOrder
+              ? "col-span-12 xl:col-span-6"
+              : "col-span-12 xl:col-span-9",
+          ].join(" ")}
+        >
           {/* Categories list (NO horizontal scroll) */}
-          <div className="w-60 border-r border-white/10 bg-black/20 flex flex-col">
+          <div className="w-full md:w-60 md:border-r border-white/10 border-b md:border-b-0 bg-black/20 flex flex-col">
             <div className={["border-b border-white/10", compactMode ? "px-3 py-2" : "px-4 py-3"].join(" ")}>
               <div className={["font-semibold", compactMode ? "text-xs" : "text-sm"].join(" ")}>Categories</div>
               <div className="text-xs text-white/60">Select to filter items</div>
             </div>
 
-            <div className={["overflow-y-auto flex-1", compactMode ? "p-1.5" : "p-2"].join(" ")}>
+            <div
+              className={[
+                "flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto flex-1",
+                compactMode ? "p-1.5" : "p-2",
+              ].join(" ")}
+            >
               <div className={["mb-2", compactMode ? "px-1" : "px-2"].join(" ")}>
                 <input
                   value={catSearch}
@@ -1522,7 +1541,7 @@ export default function PosPage() {
                       setSearch("");
                     }}
                     className={[
-                      "w-full text-left rounded-xl transition border active:scale-[0.99]",
+                      "w-full md:w-full min-w-[140px] md:min-w-0 text-left rounded-xl transition border active:scale-[0.99]",
                       compactMode ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm",
                       active
                         ? "bg-red-500/15 border-red-500/40"
@@ -1543,7 +1562,7 @@ export default function PosPage() {
           {/* Items */}
           <div className="flex-1 flex flex-col">
             <div className={["border-b border-white/10 bg-black/10", compactMode ? "p-3" : "p-4"].join(" ")}>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
                 <div className="flex-1">
                   <div className={["font-semibold", compactMode ? "text-xs" : "text-sm"].join(" ")}>
                     {activeCategory?.name || "Menu"}
@@ -1551,7 +1570,7 @@ export default function PosPage() {
                   <div className="text-xs text-white/60">Tap an item to add to cart</div>
                 </div>
 
-                <div className={compactMode ? "w-64" : "w-80"}>
+                <div className={compactMode ? "w-full md:w-64" : "w-full md:w-80"}>
                   <input
                     ref={searchRef}
                     value={search}
@@ -1594,7 +1613,7 @@ export default function PosPage() {
               {/* Favorites + Recent (no horizontal scroll) */}
               {((settings?.posShowFavorites !== false && favoriteItems.length > 0) ||
                 (settings?.posShowRecent !== false && recent.length > 0)) && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {settings?.posShowFavorites !== false && (
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                       <div className="flex items-center justify-between mb-2">
@@ -1668,10 +1687,10 @@ export default function PosPage() {
                 <div
                   className={[
                     settings?.posMenuCardSize === "lg"
-                      ? "grid grid-cols-2"
+                      ? "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
                       : settings?.posMenuCardSize === "sm"
-                      ? "grid grid-cols-4"
-                      : "grid grid-cols-3",
+                      ? "grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5"
+                      : "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4",
                     compactMode ? "gap-2" : "gap-3",
                   ].join(" ")}
                 >
@@ -1756,7 +1775,7 @@ export default function PosPage() {
 
         {/* RIGHT: cart + checkout */}
         {(panelLocked || showRight || cart.length > 0 || selectedOrder) && (
-          <aside className="col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
+          <aside className="order-3 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
           {/* CART HEADER */}
           <div className={["border-b border-white/10 bg-black/10", compactMode ? "p-3" : "p-4"].join(" ")}>
             <div className="flex items-center justify-between">

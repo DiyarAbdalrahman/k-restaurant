@@ -947,101 +947,15 @@ export default function PosPage() {
     win.document.close();
   }
 
-  function printOrderReceipt(order) {
+  async function printOrderReceipt(order) {
     if (!order) return;
-    const orderId = String(order.id || "").slice(0, 8);
-    const currency = "£";
-    const paperWidth = settings?.receiptPaperSize === "58mm" ? 220 : 300;
-    const show = {
-      logo: settings?.receiptShowLogo !== false,
-      brandName: settings?.receiptShowBrandName !== false,
-      orderId: settings?.receiptShowOrderId !== false,
-      tableType: settings?.receiptShowTableType !== false,
-      takenBy: settings?.receiptShowTakenBy !== false,
-      time: settings?.receiptShowTime !== false,
-      items: settings?.receiptShowItems !== false,
-      itemNotes: settings?.receiptShowItemNotes !== false,
-      totals: settings?.receiptShowTotals !== false,
-      discounts: settings?.receiptShowDiscounts !== false,
-      balance: settings?.receiptShowBalance !== false,
-      method: settings?.receiptShowPaymentMethod !== false,
-      footer: settings?.receiptShowFooter !== false,
-      address: settings?.receiptShowAddress === true,
-      phone: settings?.receiptShowPhone === true,
-    };
-    const payments = getPaymentsForSelected();
-    const lastPayment = payments.filter((p) => p.kind !== "refund").slice(-1)[0];
-
-    const html = `
-      <html>
-        <head>
-          <title>Order Receipt</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 12px; color: #111; }
-            .receipt { width: ${paperWidth}px; margin: 0 auto; }
-            .center { text-align: center; }
-            .title { font-size: 16px; font-weight: 700; margin: 4px 0; }
-            .muted { color: #555; font-size: 11px; }
-            .divider { border-top: 1px dashed #aaa; margin: 8px 0; }
-            .row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
-            .items .row { margin: 4px 0; }
-            .qty { min-width: 24px; }
-            .name { flex: 1; }
-            .amount { min-width: 64px; text-align: right; }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">
-            <div class="center">
-              ${show.logo ? `<img src="${logo}" alt="Logo" style="width:48px;height:48px;object-fit:cover;border-radius:10px;" />` : ""}
-              ${show.brandName ? `<div class="title">${settings?.brandName || "Kurda Restaurant"}</div>` : ""}
-              ${settings?.receiptHeaderText ? `<div class="muted">${settings.receiptHeaderText}</div>` : ""}
-              ${show.address && settings?.receiptAddress ? `<div class="muted">${settings.receiptAddress}</div>` : ""}
-              ${show.phone && settings?.receiptPhone ? `<div class="muted">${settings.receiptPhone}</div>` : ""}
-              <div class="title">Order Receipt</div>
-            </div>
-
-            <div class="divider"></div>
-            ${show.orderId ? `<div class="row"><div>Order</div><div>#${orderId}</div></div>` : ""}
-            ${show.tableType ? `<div class="row"><div>${order.type === "dine_in" ? "Table" : "Type"}</div><div>${order.type === "dine_in" ? (order.table?.name || "-") : "Takeaway"}</div></div>` : ""}
-            ${show.takenBy && order.openedByUser ? `<div class="row"><div>Cashier</div><div>${order.openedByUser.fullName || order.openedByUser.username}</div></div>` : ""}
-            ${show.time ? `<div class="row"><div>Time</div><div>${formatTime(order.createdAt)}</div></div>` : ""}
-
-            ${show.items ? `
-              <div class="divider"></div>
-              <div class="items">
-                ${(order.items || []).map((it) => `
-                  <div class="row">
-                    <div class="qty">${it.quantity}x</div>
-                    <div class="name">${(it.menuItem && it.menuItem.name) || "Item"}</div>
-                    <div class="amount">${currency}${Number(it.totalPrice || (it.quantity * it.unitPrice) || 0).toFixed(2)}</div>
-                  </div>
-                  ${show.itemNotes && it.notes ? `<div class="muted" style="margin-left:24px;">${it.notes}</div>` : ""}
-                `).join("")}
-              </div>
-            ` : ""}
-
-            ${show.totals ? `
-              <div class="divider"></div>
-              <div class="row"><div>Subtotal</div><div>${currency}${Number(order.subtotal || 0).toFixed(2)}</div></div>
-              ${show.discounts ? `<div class="row"><div>Discount</div><div>-${currency}${Number(order.discountAmount || 0).toFixed(2)}</div></div>` : ""}
-              <div class="row"><div>Service</div><div>${currency}${Number(order.serviceCharge || 0).toFixed(2)}</div></div>
-              <div class="row"><div>Tax</div><div>${currency}${Number(order.taxAmount || 0).toFixed(2)}</div></div>
-              <div class="row"><div><strong>Total</strong></div><div><strong>${currency}${Number(order.total || 0).toFixed(2)}</strong></div></div>
-              <div class="row"><div>Paid</div><div>${currency}${checkoutTotals.paid.toFixed(2)}</div></div>
-              ${show.balance ? `<div class="row"><div>Balance</div><div>${currency}${checkoutTotals.remaining.toFixed(2)}</div></div>` : ""}
-            ` : ""}
-            ${show.method && lastPayment ? `<div class="row"><div>Method</div><div>${lastPayment.method}</div></div>` : ""}
-            ${show.footer ? `<div class="divider"></div><div class="center muted">${settings?.receiptFooterText || "Thank you!"}</div>` : ""}
-          </div>
-          <script>window.print();</script>
-        </body>
-      </html>
-    `;
-    const win = window.open("", "order_receipt", "width=400,height=600");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
+    try {
+      await api.post(`/orders/${order.id}/print-receipt`);
+      toast.success("Receipt sent to printer");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to print receipt");
+    }
   }
 
   async function confirmLeaveUnpaid() {

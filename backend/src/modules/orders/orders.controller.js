@@ -1,6 +1,7 @@
 // src/modules/orders/orders.controller.js
 const { ordersService } = require("./orders.service");
-const { printKitchenTicket } = require("../../services/printer.service");
+const { printKitchenTicket, printCustomerReceipt } = require("../../services/printer.service");
+const prisma = require("../../db/prisma");
 const { emitOrderUpdated } = require("../kitchen/kitchen.gateway");
 
 
@@ -118,6 +119,20 @@ class OrdersController {
 
       await printKitchenTicket(order);
       res.json({ message: "Kitchen ticket sent to printer" });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async printReceipt(req, res, next) {
+    try {
+      const order = await ordersService.getOrder(req.params.id);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      const settings = await prisma.settings.findFirst();
+      await printCustomerReceipt(order, settings);
+      res.json({ message: "Receipt sent to printer" });
     } catch (err) {
       next(err);
     }

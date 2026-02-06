@@ -66,4 +66,10 @@ ordersRouter.post(
   (req, res, next) => ordersController.printKitchen(req, res, next)
 );
 
+ordersRouter.post(
+  "/:id/print-receipt",
+  requireRole("admin", "manager", "pos", "waiter"),
+  (req, res, next) => ordersController.printReceipt(req, res, next)
+);
+
 module.exports = ordersRouter;

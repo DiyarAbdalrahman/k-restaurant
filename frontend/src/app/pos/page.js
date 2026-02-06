@@ -672,7 +672,7 @@ export default function PosPage() {
       const paid = calcOrderPaid(freshOrder);
       const total = Number(freshOrder.total || 0);
       const remaining = Math.max(0, total - paid);
-      if (remaining <= 0.001) {
+      if (freshOrder.status === "paid" || remaining <= 0.001) {
         if (settings?.posAutoPrintReceiptOnPayment || printAfter) {
           printOrderReceipt(freshOrder);
         }

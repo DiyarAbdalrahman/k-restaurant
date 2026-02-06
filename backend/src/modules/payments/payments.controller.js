@@ -50,7 +50,9 @@ class PaymentsController {
       });
 
       const netPaidAfter = netPaid + Number(amount);
-      if (netPaidAfter >= Number(order.total) && order.status !== "paid") {
+      const totalDue = Number(order.total);
+      const epsilon = 0.0001;
+      if (netPaidAfter + epsilon >= totalDue && order.status !== "paid") {
         await prisma.order.update({
           where: { id: orderId },
           data: { status: "paid" },

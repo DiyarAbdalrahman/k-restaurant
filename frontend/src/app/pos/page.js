@@ -1732,23 +1732,16 @@ export default function PosPage() {
                               £{Number(item.basePrice || 0).toFixed(2)}
                             </div>
                           </button>
-                          <div className="flex flex-col gap-1">
-                            <button
-                              onClick={() => addToCart(item)}
-                              className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm"
-                              type="button"
-                            >
-                              +
-                            </button>
+                          {inCart && (
                             <button
                               onClick={() => removeOneFromCart(item)}
                               className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm"
                               type="button"
-                              disabled={!inCart}
+                              title="Remove one"
                             >
                               -
                             </button>
-                          </div>
+                          )}
                         </div>
 
                         <button

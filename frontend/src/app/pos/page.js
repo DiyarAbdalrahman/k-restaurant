@@ -1100,7 +1100,7 @@ export default function PosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
       {switchOpen && (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-black/90 p-4">
@@ -1347,7 +1347,7 @@ export default function PosPage() {
         ].join(" ")}
       >
         {/* LEFT: tables + orders */}
-        <aside className="order-3 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
+        <aside className="order-3 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col min-w-0">
           <div className={["border-b border-white/10", compactMode ? "px-3 py-2" : "px-4 py-3"].join(" ")}>
             <div className={["font-semibold", compactMode ? "text-xs" : "text-sm"].join(" ")}>Tables</div>
             <div className="text-xs text-white/60">Tap to select / deselect</div>
@@ -1775,7 +1775,7 @@ export default function PosPage() {
 
         {/* RIGHT: cart + checkout */}
         {(panelLocked || showRight || cart.length > 0 || selectedOrder) && (
-          <aside className="order-2 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col">
+          <aside className="order-2 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col min-w-0">
           {/* CART HEADER */}
           <div className={["border-b border-white/10 bg-black/10", compactMode ? "p-3" : "p-4"].join(" ")}>
             <div className="flex items-center justify-between">

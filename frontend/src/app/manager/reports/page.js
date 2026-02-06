@@ -528,7 +528,7 @@ export default function ManagerReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen bg-black text-white flex flex-col overflow-x-hidden">
       {/* TOP BAR */}
       <header className="sticky top-0 z-20 bg-black/80 backdrop-blur border-b border-white/10">
         <div className="px-4 md:px-6 py-3 flex items-center justify-between">
@@ -913,7 +913,7 @@ export default function ManagerReportsPage() {
 
             {/* Table */}
             <div className="rounded-2xl bg-white/[0.04] border border-white/10 overflow-hidden">
-              <div className="grid grid-cols-12 gap-0 px-4 py-3 border-b border-white/10 text-[11px] uppercase tracking-wide text-slate-400">
+              <div className="hidden sm:grid grid-cols-12 gap-0 px-4 py-3 border-b border-white/10 text-[11px] uppercase tracking-wide text-slate-400">
                 <div className="col-span-6">Item</div>
                 <div className="col-span-3">Category</div>
                 <div className="col-span-1 text-right">Qty</div>
@@ -929,18 +929,22 @@ export default function ManagerReportsPage() {
                   items.map((it) => (
                     <div
                       key={it.id}
-                      className="grid grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03]"
+                      className="grid grid-cols-1 sm:grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03] gap-1 sm:gap-0"
                     >
-                      <div className="col-span-6">
+                      <div className="sm:col-span-6">
+                        <div className="sm:hidden text-[10px] uppercase text-slate-500">Item</div>
                         <div className="text-sm font-semibold">{it.name}</div>
                       </div>
-                      <div className="col-span-3 text-xs text-slate-300">
+                      <div className="sm:col-span-3 text-xs text-slate-300">
+                        <div className="sm:hidden text-[10px] uppercase text-slate-500">Category</div>
                         {it.category}
                       </div>
-                      <div className="col-span-1 text-right text-sm font-semibold">
+                      <div className="sm:col-span-1 sm:text-right text-sm font-semibold">
+                        <div className="sm:hidden text-[10px] uppercase text-slate-500">Qty</div>
                         {it.qty}
                       </div>
-                      <div className="col-span-2 text-right text-sm font-semibold text-red-200">
+                      <div className="sm:col-span-2 sm:text-right text-sm font-semibold text-red-200">
+                        <div className="sm:hidden text-[10px] uppercase text-slate-500">Revenue</div>
                         {formatGBP(it.revenue)}
                       </div>
                     </div>
@@ -961,7 +965,7 @@ export default function ManagerReportsPage() {
             </div>
 
             <div className="rounded-2xl bg-white/[0.04] border border-white/10 overflow-hidden">
-              <div className="grid grid-cols-12 px-4 py-3 border-b border-white/10 text-[11px] uppercase tracking-wide text-slate-400">
+              <div className="hidden sm:grid grid-cols-12 px-4 py-3 border-b border-white/10 text-[11px] uppercase tracking-wide text-slate-400">
                 <div className="col-span-8">Staff</div>
                 <div className="col-span-4 text-right">Net</div>
               </div>
@@ -973,15 +977,19 @@ export default function ManagerReportsPage() {
                   staffRows.map((r, idx) => (
                     <div
                       key={`${r.staff}-${idx}`}
-                      className="grid grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03]"
+                      className="grid grid-cols-1 sm:grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03] gap-1 sm:gap-0"
                     >
-                      <div className="col-span-8 flex items-center gap-3">
+                      <div className="sm:col-span-8 flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-xs font-bold">
                           {idx + 1}
                         </div>
-                        <div className="text-sm font-semibold">{r.staff}</div>
+                        <div>
+                          <div className="sm:hidden text-[10px] uppercase text-slate-500">Staff</div>
+                          <div className="text-sm font-semibold">{r.staff}</div>
+                        </div>
                       </div>
-                      <div className="col-span-4 text-right text-sm font-semibold text-red-200">
+                      <div className="sm:col-span-4 sm:text-right text-sm font-semibold text-red-200">
+                        <div className="sm:hidden text-[10px] uppercase text-slate-500">Net</div>
                         {formatGBP(r.net)}
                       </div>
                     </div>

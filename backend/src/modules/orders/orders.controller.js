@@ -39,6 +39,18 @@ class OrdersController {
     }
   }
 
+  async lookup(req, res, next) {
+    try {
+      const q = String(req.query.q || "").trim();
+      if (!q) return res.status(400).json({ message: "Query is required" });
+      const order = await ordersService.findByPrefix(q);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+      res.json(order);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async updateStatus(req, res, next) {
     try {
       const { id } = req.params;

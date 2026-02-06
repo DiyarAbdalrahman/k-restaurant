@@ -4,15 +4,19 @@ import { useEffect, useMemo, useState, Children } from "react";
 import api from "@/lib/api";
 import { getUser, clearAuth } from "@/lib/auth";
 import { kitchenSocket } from "@/lib/socket";
+import { useSettings } from "@/lib/settings";
 
 const STATUS_NEW = "sent_to_kitchen";
 const STATUS_COOKING = "in_progress";
 const STATUS_READY = "ready";
 
 export default function KitchenPage() {
+  const { settings } = useSettings();
+  const logo = settings?.logoUrl || "/logo.png";
   const [user, setUser] = useState(null);
   const [orders, setOrders] = useState([]);
   const [draggedOrderId, setDraggedOrderId] = useState(null);
+  const [flashIds, setFlashIds] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
@@ -20,6 +24,16 @@ export default function KitchenPage() {
   // UI controls
   const [search, setSearch] = useState("");
   const [focus, setFocus] = useState("all"); // all | new | cooking | ready
+  const [typeFilter, setTypeFilter] = useState("all"); // all | dine_in | takeaway
+  const [autoHideReady, setAutoHideReady] = useState(true);
+  const [now, setNow] = useState(Date.now());
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundLoud, setSoundLoud] = useState(false);
+  const [autoHideMinutes, setAutoHideMinutes] = useState(10);
+  const [tableFilter, setTableFilter] = useState("all");
+  const [compactMode, setCompactMode] = useState(false);
+  const [refreshSeconds, setRefreshSeconds] = useState(45);
+  const [showAgeBands, setShowAgeBands] = useState(true);
 
   // Toasts
   const toast = useToasts();
@@ -35,6 +49,25 @@ export default function KitchenPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!settings) return;
+    if (typeof settings.kitchenSoundEnabled === "boolean") {
+      setSoundEnabled(settings.kitchenSoundEnabled);
+    }
+    if (typeof settings.kitchenLoudSound === "boolean") {
+      setSoundLoud(settings.kitchenLoudSound);
+    }
+    if (typeof settings.kitchenAutoHideReadyMinutes === "number") {
+      setAutoHideMinutes(settings.kitchenAutoHideReadyMinutes);
+    }
+    if (typeof settings.kitchenAutoRefreshSeconds === "number") {
+      setRefreshSeconds(settings.kitchenAutoRefreshSeconds);
+    }
+    if (typeof settings.kitchenShowAgeBands === "boolean") {
+      setShowAgeBands(settings.kitchenShowAgeBands);
+    }
+  }, [settings]);
+
   // Socket: update without polling
   useEffect(() => {
     const onUpdated = (updatedOrder) => {
@@ -47,7 +80,18 @@ export default function KitchenPage() {
         }
 
         const idx = prev.findIndex((o) => o.id === updatedOrder.id);
-        if (idx === -1) return [updatedOrder, ...prev];
+        if (idx === -1) {
+          if (updatedOrder.status === STATUS_NEW) {
+            setFlashIds((curr) =>
+              curr.includes(updatedOrder.id) ? curr : [...curr, updatedOrder.id]
+            );
+            playBeep({ enabled: soundEnabled, loud: soundLoud });
+            setTimeout(() => {
+              setFlashIds((curr) => curr.filter((id) => id !== updatedOrder.id));
+            }, 2000);
+          }
+          return [updatedOrder, ...prev];
+        }
         const copy = [...prev];
         copy[idx] = { ...copy[idx], ...updatedOrder };
         return copy;
@@ -55,10 +99,28 @@ export default function KitchenPage() {
     };
 
     kitchenSocket.on("order:updated", onUpdated);
+    kitchenSocket.on("connect_error", () => {
+      toast.info("Kitchen live updates reconnecting...");
+    });
 
     return () => {
       kitchenSocket.off("order:updated", onUpdated);
+      kitchenSocket.off("connect_error");
     };
+  }, []);
+
+  // Fallback polling (in case socket drops)
+  useEffect(() => {
+    if (!refreshSeconds || refreshSeconds <= 0) return;
+    const t = setInterval(() => {
+      loadOrders();
+    }, Math.max(10, refreshSeconds) * 1000);
+    return () => clearInterval(t);
+  }, [refreshSeconds]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(t);
   }, []);
 
   async function loadOrders() {
@@ -169,9 +231,37 @@ export default function KitchenPage() {
     });
   }
 
-  const filteredNew = filterOrders(newOrders);
-  const filteredCooking = filterOrders(cookingOrders);
-  const filteredReady = filterOrders(readyOrders);
+  function applyTypeFilter(arr) {
+    if (typeFilter === "all") return arr;
+    return arr.filter((o) => o.type === typeFilter);
+  }
+
+  function applyTableFilter(arr) {
+    if (tableFilter === "all") return arr;
+    if (tableFilter === "takeaway") return arr.filter((o) => o.type !== "dine_in");
+    return arr.filter((o) => String(o.table?.name || "") === tableFilter);
+  }
+
+  function applyAutoHideReady(arr) {
+    if (!autoHideReady) return arr;
+      return arr.filter((o) => {
+        if (o.status !== STATUS_READY) return true;
+        const created = new Date(o.createdAt).getTime();
+        return now - created <= autoHideMinutes * 60 * 1000;
+      });
+  }
+
+  const filteredNew = applyTableFilter(applyTypeFilter(filterOrders(newOrders)));
+  const filteredCooking = applyTableFilter(applyTypeFilter(filterOrders(cookingOrders)));
+  const filteredReady = applyAutoHideReady(applyTableFilter(applyTypeFilter(filterOrders(readyOrders))));
+
+  const tableOptions = useMemo(() => {
+    const names = new Set();
+    for (const o of orders) {
+      if (o.type === "dine_in" && o.table?.name) names.add(o.table.name);
+    }
+    return Array.from(names).sort();
+  }, [orders]);
 
   // Focus view for smaller screens (tablet)
   const columnsToShow =
@@ -193,8 +283,8 @@ export default function KitchenPage() {
       <header className="sticky top-0 z-20 border-b border-white/10 bg-black/80 backdrop-blur">
         <div className="px-5 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-red-600/20 border border-red-600/30 flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+            <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden">
+              <img src={logo} alt="Kurda Restaurant" className="w-full h-full object-cover" />
             </div>
 
             <div className="min-w-0">
@@ -214,6 +304,26 @@ export default function KitchenPage() {
                 placeholder="Search order / table / item..."
                 className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2 text-sm outline-none focus:border-red-500/60"
               />
+            </div>
+
+            <div className="hidden md:flex items-center gap-2">
+              <label className="flex items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={soundEnabled}
+                  onChange={(e) => setSoundEnabled(e.target.checked)}
+                />
+                Sound
+              </label>
+              <label className="flex items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={soundLoud}
+                  onChange={(e) => setSoundLoud(e.target.checked)}
+                  disabled={!soundEnabled}
+                />
+                Loud
+              </label>
             </div>
 
             {/* User */}
@@ -261,6 +371,49 @@ export default function KitchenPage() {
             />
           </div>
         </div>
+        <div className="px-5 pb-4 hidden md:flex items-center gap-3 flex-wrap">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-2xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none focus:border-red-500/60"
+          >
+            <option value="all">All types</option>
+            <option value="dine_in">Dine In</option>
+            <option value="takeaway">Takeaway</option>
+          </select>
+
+          <select
+            value={tableFilter}
+            onChange={(e) => setTableFilter(e.target.value)}
+            className="rounded-2xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none focus:border-red-500/60"
+          >
+            <option value="all">All tables</option>
+            <option value="takeaway">Takeaway</option>
+            {tableOptions.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+
+          <label className="flex items-center gap-2 text-xs text-white/70">
+            <input
+              type="checkbox"
+              checked={autoHideReady}
+              onChange={(e) => setAutoHideReady(e.target.checked)}
+            />
+            Auto-hide Ready after 10m
+          </label>
+
+          <label className="flex items-center gap-2 text-xs text-white/70">
+            <input
+              type="checkbox"
+              checked={compactMode}
+              onChange={(e) => setCompactMode(e.target.checked)}
+            />
+            Compact mode
+          </label>
+        </div>
       </header>
 
       {/* MAIN GRID */}
@@ -287,6 +440,10 @@ export default function KitchenPage() {
                 onDragStart={onDragStart}
                 updating={updatingId === order.id}
                 setStatus={setStatus}
+                flash={flashIds.includes(order.id)}
+                now={now}
+                compact={compactMode}
+                showAgeBands={showAgeBands}
               />
             ))}
           </Column>
@@ -309,6 +466,10 @@ export default function KitchenPage() {
                 onDragStart={onDragStart}
                 updating={updatingId === order.id}
                 setStatus={setStatus}
+                flash={flashIds.includes(order.id)}
+                now={now}
+                compact={compactMode}
+                showAgeBands={showAgeBands}
               />
             ))}
           </Column>
@@ -331,6 +492,10 @@ export default function KitchenPage() {
                 onDragStart={onDragStart}
                 updating={updatingId === order.id}
                 setStatus={setStatus}
+                flash={flashIds.includes(order.id)}
+                now={now}
+                compact={compactMode}
+                showAgeBands={showAgeBands}
               />
             ))}
           </Column>
@@ -392,8 +557,10 @@ function Column({ title, subtitle, badge, tone, children, onDragOver, onDrop }) 
 // -----------------------------
 // Ticket Card (modern + quick actions)
 // -----------------------------
-function OrderCard({ order, onDragStart, updating, setStatus }) {
+function OrderCard({ order, onDragStart, updating, setStatus, flash, now, compact, showAgeBands }) {
   const itemCount = (order.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+  const createdMs = new Date(order.createdAt || Date.now()).getTime();
+  const ageMin = Math.max(0, Math.floor(((now || Date.now()) - createdMs) / 60000));
 
   const headerChip =
     order.status === STATUS_NEW
@@ -405,11 +572,27 @@ function OrderCard({ order, onDragStart, updating, setStatus }) {
   const statusLabel =
     order.status === STATUS_NEW ? "NEW" : order.status === STATUS_COOKING ? "COOKING" : "READY";
 
+  const ageBand =
+    !showAgeBands
+      ? ""
+      : ageMin >= 20
+      ? "ring-2 ring-red-500/40"
+      : ageMin >= 10
+      ? "ring-2 ring-amber-400/40"
+      : ageMin >= 5
+      ? "ring-2 ring-emerald-400/30"
+      : "";
+
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, order.id)}
-      className="rounded-3xl border border-white/10 bg-black/25 hover:bg-black/35 transition shadow-sm"
+      className={[
+        "border bg-black/25 hover:bg-black/35 transition shadow-sm",
+        compact ? "rounded-2xl" : "rounded-3xl",
+        flash ? "border-red-500/60 ring-2 ring-red-500/30" : "border-white/10",
+        ageBand,
+      ].join(" ")}
     >
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -428,6 +611,14 @@ function OrderCard({ order, onDragStart, updating, setStatus }) {
               {order.type === "dine_in" ? `Table ${order.table?.name || "?"}` : "Takeaway"}
               <span className="mx-2 text-white/30">•</span>
               Items: {itemCount}
+              <span className="mx-2 text-white/30">•</span>
+              {ageMin}m ago
+              {order.openedByUser && (
+                <>
+                  <span className="mx-2 text-white/30">•</span>
+                  by {order.openedByUser.fullName || order.openedByUser.username}
+                </>
+              )}
             </div>
           </div>
 
@@ -437,7 +628,7 @@ function OrderCard({ order, onDragStart, updating, setStatus }) {
           </div>
         </div>
 
-        <div className="mt-3 max-h-44 overflow-y-auto space-y-2 pr-1">
+        <div className={compact ? "mt-3 max-h-32 overflow-y-auto space-y-2 pr-1" : "mt-3 max-h-44 overflow-y-auto space-y-2 pr-1"}>
           {(order.items || []).map((it) => (
             <div key={it.id} className="rounded-2xl border border-white/10 bg-white/5 p-2">
               <div className="flex items-center justify-between gap-2">
@@ -456,7 +647,7 @@ function OrderCard({ order, onDragStart, updating, setStatus }) {
         </div>
 
         {/* Quick actions (tablet-friendly) */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className={compact ? "mt-3 grid grid-cols-3 gap-2" : "mt-4 grid grid-cols-3 gap-2"}>
           <button
             onClick={() => setStatus(order.id, STATUS_NEW)}
             disabled={updating}
@@ -509,6 +700,25 @@ function TabButton({ active, label, onClick }) {
       {label}
     </button>
   );
+}
+
+function playBeep({ enabled, loud }) {
+  if (!enabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.value = loud ? 0.12 : 0.05;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    setTimeout(() => {
+      osc.stop();
+      ctx.close();
+    }, 180);
+  } catch {}
 }
 
 // -----------------------------

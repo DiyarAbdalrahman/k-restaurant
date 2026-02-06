@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { getUser, clearAuth } from "@/lib/auth";
+import { useSettings } from "@/lib/settings";
+import { resolveMediaUrl } from "@/lib/media";
 
 const ROLE_ALLOWED = new Set(["admin", "manager"]);
 
@@ -23,6 +25,28 @@ function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+function startOfWeek(d) {
+  const x = new Date(d);
+  const day = x.getDay(); // 0 (Sun) - 6 (Sat)
+  x.setDate(x.getDate() - day);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function startOfMonth(d) {
+  const x = new Date(d);
+  x.setDate(1);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function startOfYear(d) {
+  const x = new Date(d);
+  x.setMonth(0, 1);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
 
 function addDays(d, days) {
@@ -51,6 +75,45 @@ function downloadCSV(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+function printSectionPdf(title, rows, logoUrl, brandName) {
+  const html = `
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 16px; color: #111; }
+          h2 { margin: 0 0 8px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; text-align: left; }
+          th { background: #f2f2f2; }
+        </style>
+      </head>
+      <body>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="${logoUrl || "/logo.png"}" alt="Logo" style="width:48px;height:48px;object-fit:cover;border-radius:8px;" />
+          <div>
+            <h2 style="margin:0;">${title}</h2>
+            <div style="font-size:12px;color:#555;">${brandName || "Kurda Restaurant"}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>${rows[0].map((h) => `<th>${h}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${rows.slice(1).map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}
+          </tbody>
+        </table>
+        <script>window.print();</script>
+      </body>
+    </html>
+  `;
+  const win = window.open("", "report_pdf", "width=800,height=900");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+}
+
 function Chip({ active, onClick, children }) {
   return (
     <button
@@ -70,10 +133,13 @@ function Chip({ active, onClick, children }) {
 function StatCard({ label, value, sub }) {
   return (
     <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-4 shadow-sm">
-      <div className="text-[11px] uppercase tracking-wide text-slate-400">
-        {label}
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] uppercase tracking-wide text-slate-400">
+          {label}
+        </div>
+        <div className="w-2 h-2 rounded-full bg-red-500/70" />
       </div>
-      <div className="mt-1 text-2xl font-bold text-white">{value}</div>
+      <div className="mt-2 text-2xl font-bold text-white">{value}</div>
       {sub ? (
         <div className="mt-1 text-xs text-slate-400">{sub}</div>
       ) : null}
@@ -107,7 +173,142 @@ function MiniBarChart({ points, valueKey = "net" }) {
   );
 }
 
+function AreaChart({ points, valueKey = "net" }) {
+  const data = (points || []).slice(-30);
+  if (data.length === 0) return <div className="text-xs text-slate-400">No data</div>;
+  const values = data.map((p) => Number(p[valueKey] || 0));
+  const max = Math.max(1, ...values);
+  const min = Math.min(0, ...values);
+  const range = max - min || 1;
+  const width = 600;
+  const height = 120;
+  const step = width / (data.length - 1 || 1);
+  const pointsStr = values
+    .map((v, i) => {
+      const x = i * step;
+      const y = height - ((v - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const areaStr = `0,${height} ${pointsStr} ${width},${height}`;
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-28">
+      <polyline
+        points={pointsStr}
+        fill="none"
+        stroke="#ef4444"
+        strokeWidth="3"
+      />
+      <polygon points={areaStr} fill="rgba(239,68,68,0.2)" />
+    </svg>
+  );
+}
+
+function StackedBars({ points }) {
+  const data = (points || []).slice(-14);
+  if (data.length === 0) return <div className="text-xs text-slate-400">No data</div>;
+  const max = Math.max(
+    1,
+    ...data.map((p) => Number(p.gross || 0) + Number(p.refunds || 0))
+  );
+  return (
+    <div className="flex items-end gap-2 h-28 w-full">
+      {data.map((p, idx) => {
+        const gross = Number(p.gross || 0);
+        const refunds = Number(p.refunds || 0);
+        const grossH = Math.round((gross / max) * 100);
+        const refundH = Math.round((refunds / max) * 100);
+        return (
+          <div key={idx} className="flex-1 flex flex-col justify-end gap-1">
+            <div
+              className="w-full rounded-sm bg-red-500/70"
+              style={{ height: `${grossH}%` }}
+              title={`Gross: ${formatGBP(gross)}`}
+            />
+            <div
+              className="w-full rounded-sm bg-white/20"
+              style={{ height: `${refundH}%` }}
+              title={`Refunds: ${formatGBP(refunds)}`}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Donut({ data }) {
+  const total = data.reduce((s, x) => s + Number(x.value || 0), 0) || 1;
+  const segments = data.map((d) => ({
+    ...d,
+    pct: (Number(d.value || 0) / total) * 100,
+  }));
+  let acc = 0;
+  const colors = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6"];
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox="0 0 42 42" className="w-24 h-24">
+        {segments.map((s, i) => {
+          const dash = `${s.pct} ${100 - s.pct}`;
+          const offset = 25 - acc;
+          acc += s.pct;
+          return (
+            <circle
+              key={i}
+              cx="21"
+              cy="21"
+              r="15.9"
+              fill="transparent"
+              stroke={colors[i % colors.length]}
+              strokeWidth="8"
+              strokeDasharray={dash}
+              strokeDashoffset={offset}
+            />
+          );
+        })}
+        <circle cx="21" cy="21" r="10" fill="#0b0b0b" />
+      </svg>
+      <div className="space-y-1 text-xs text-slate-300">
+        {segments.map((s, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full"
+              style={{ background: colors[i % colors.length] }}
+            />
+            {s.label}: {formatGBP(s.value)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HorizontalBars({ rows }) {
+  if (!rows || rows.length === 0) return <div className="text-xs text-slate-400">No data</div>;
+  const max = Math.max(1, ...rows.map((r) => Number(r.value || 0)));
+  return (
+    <div className="space-y-2">
+      {rows.slice(0, 5).map((r, idx) => (
+        <div key={idx}>
+          <div className="flex items-center justify-between text-xs text-slate-300">
+            <span>{r.label}</span>
+            <span>{formatGBP(r.value)}</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full bg-red-500/70"
+              style={{ width: `${(Number(r.value || 0) / max) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ManagerReportsPage() {
+  const { settings } = useSettings();
+  const logo = resolveMediaUrl(settings?.logoUrl) || "/logo.png";
   const [user, setUser] = useState(null);
 
   // Tabs
@@ -119,7 +320,7 @@ export default function ManagerReportsPage() {
   const [to, setTo] = useState(isoDateOnly(new Date()));
 
   // Filters
-  const [method, setMethod] = useState("all"); // all | cash | card | split
+  const [method, setMethod] = useState("all"); // all | cash | card
   const [type, setType] = useState("all"); // all | dine_in | takeaway
 
   // Items filters
@@ -140,18 +341,19 @@ export default function ManagerReportsPage() {
   // Apply preset to from/to
   useEffect(() => {
     const today = startOfToday();
+    const now = new Date();
     if (preset === "today") {
       setFrom(isoDateOnly(today));
-      setTo(isoDateOnly(new Date()));
+      setTo(isoDateOnly(now));
     } else if (preset === "week") {
-      setFrom(isoDateOnly(addDays(today, -6)));
-      setTo(isoDateOnly(new Date()));
+      setFrom(isoDateOnly(startOfWeek(today)));
+      setTo(isoDateOnly(now));
     } else if (preset === "month") {
-      setFrom(isoDateOnly(addDays(today, -30)));
-      setTo(isoDateOnly(new Date()));
+      setFrom(isoDateOnly(startOfMonth(today)));
+      setTo(isoDateOnly(now));
     } else if (preset === "year") {
-      setFrom(isoDateOnly(addDays(today, -365)));
-      setTo(isoDateOnly(new Date()));
+      setFrom(isoDateOnly(startOfYear(today)));
+      setTo(isoDateOnly(now));
     }
   }, [preset]);
 
@@ -217,7 +419,11 @@ export default function ManagerReportsPage() {
       await Promise.all([loadCategories(), loadSummary(), loadItems(), loadAlerts()]);
     } catch (e) {
       console.error(e);
-      setMessage("Failed to load reports (check backend logs).");
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Failed to load reports (check backend logs).";
+      setMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -247,6 +453,70 @@ export default function ManagerReportsPage() {
 
   const staffRows = useMemo(() => summary?.byStaff || [], [summary]);
 
+  function exportOverviewCsv() {
+    const rows = [
+      ["Metric", "Value"],
+      ["Net Sales", formatGBP(totals?.net)],
+      ["Gross", formatGBP(totals?.gross)],
+      ["Refunds", formatGBP(totals?.refunds)],
+      ["Orders", String(totals?.ordersCount || 0)],
+      ["Avg Order", formatGBP(totals?.avgOrder)],
+    ];
+    const daily = [
+      ["Date", "Gross", "Refunds", "Net"],
+      ...(summary?.daily || []).map((d) => [d.date, d.gross, d.refunds, d.net]),
+    ];
+    const methods = [
+      ["Method", "Net"],
+      ...(summary?.byMethod || []).map((m) => [m.method, m.net]),
+    ];
+    downloadCSV(`overview_${from}_to_${to}.csv`, rows.concat([[], ...daily, [], ...methods]));
+  }
+
+  function exportOverviewPdf() {
+    const rows = [
+      ["Metric", "Value"],
+      ["Net Sales", formatGBP(totals?.net)],
+      ["Gross", formatGBP(totals?.gross)],
+      ["Refunds", formatGBP(totals?.refunds)],
+      ["Orders", String(totals?.ordersCount || 0)],
+      ["Avg Order", formatGBP(totals?.avgOrder)],
+    ];
+    printSectionPdf(`Overview ${from} → ${to}`, rows, logo, settings?.brandName);
+  }
+
+  function exportStaffCsv() {
+    const rows = [
+      ["Staff", "Net"],
+      ...(staffRows || []).map((s) => [s.staff, s.net]),
+    ];
+    downloadCSV(`staff_${from}_to_${to}.csv`, rows);
+  }
+
+  function exportStaffPdf() {
+    const rows = [
+      ["Staff", "Net"],
+      ...(staffRows || []).map((s) => [s.staff, s.net]),
+    ];
+    printSectionPdf(`Staff ${from} → ${to}`, rows, logo, settings?.brandName);
+  }
+
+  function exportAlertsCsv() {
+    const rows = [
+      ["Item", "Prev Qty", "Now Qty", "Drop %"],
+      ...(slowAlerts || []).map((a) => [a.name, a.prevQty, a.nowQty, a.dropPercent]),
+    ];
+    downloadCSV(`alerts_${from}_to_${to}.csv`, rows);
+  }
+
+  function exportAlertsPdf() {
+    const rows = [
+      ["Item", "Prev Qty", "Now Qty", "Drop %"],
+      ...(slowAlerts || []).map((a) => [a.name, a.prevQty, a.nowQty, a.dropPercent]),
+    ];
+    printSectionPdf(`Alerts ${from} → ${to}`, rows, logo, settings?.brandName);
+  }
+
   if (!user) return null;
 
   if (loading) {
@@ -263,8 +533,8 @@ export default function ManagerReportsPage() {
       <header className="sticky top-0 z-20 bg-black/80 backdrop-blur border-b border-white/10">
         <div className="px-4 md:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+            <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden">
+              <img src={logo} alt="Kurda Restaurant" className="w-full h-full object-cover" />
             </div>
             <div>
               <div className="text-lg font-bold leading-tight">Manager Reports</div>
@@ -275,6 +545,90 @@ export default function ManagerReportsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {tab === "overview" && (
+              <>
+                <button
+                  onClick={exportOverviewCsv}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                >
+                  Export CSV
+                </button>
+                <button
+                  onClick={exportOverviewPdf}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                >
+                  Export PDF
+                </button>
+              </>
+            )}
+            {tab === "staff" && (
+              <>
+                <button
+                  onClick={exportStaffCsv}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                >
+                  Export CSV
+                </button>
+                <button
+                  onClick={exportStaffPdf}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                >
+                  Export PDF
+                </button>
+              </>
+            )}
+            {tab === "alerts" && (
+              <>
+                <button
+                  onClick={exportAlertsCsv}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                >
+                  Export CSV
+                </button>
+                <button
+                  onClick={exportAlertsPdf}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                >
+                  Export PDF
+                </button>
+              </>
+            )}
+            <a
+              href="/manager/menu"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+            >
+              Menu
+            </a>
+            <a
+              href="/manager/tables"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+            >
+              Tables
+            </a>
+            <a
+              href="/manager/users"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+            >
+              Users
+            </a>
+            <a
+              href="/manager/settings"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+            >
+              Settings
+            </a>
+            <a
+              href="/manager/promotions"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+            >
+              Promotions
+            </a>
+            <a
+              href="/pos"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+            >
+              POS
+            </a>
             <button
               onClick={refreshAll}
               className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
@@ -291,7 +645,8 @@ export default function ManagerReportsPage() {
         </div>
 
         {/* FILTER BAR */}
-        <div className="px-4 md:px-6 pb-3 flex flex-col gap-3">
+        <div className="px-4 md:px-6 pb-3">
+          <div className="rounded-3xl bg-white/[0.04] border border-white/10 p-3 md:p-4">
           {/* Tabs */}
           <div className="flex flex-wrap gap-2">
             <Chip active={tab === "overview"} onClick={() => setTab("overview")}>
@@ -309,7 +664,7 @@ export default function ManagerReportsPage() {
           </div>
 
           {/* Range + Filters */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 mt-3">
             {/* Presets */}
             <div className="lg:col-span-4 flex flex-wrap gap-2">
               <Chip active={preset === "today"} onClick={() => setPreset("today")}>
@@ -369,7 +724,6 @@ export default function ManagerReportsPage() {
                   <option value="all">All</option>
                   <option value="cash">Cash</option>
                   <option value="card">Card</option>
-                  <option value="split">Split</option>
                 </select>
               </div>
 
@@ -393,6 +747,7 @@ export default function ManagerReportsPage() {
               {message}
             </div>
           ) : null}
+          </div>
         </div>
       </header>
 
@@ -401,7 +756,7 @@ export default function ManagerReportsPage() {
         {tab === "overview" && (
           <div className="space-y-4">
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
               <StatCard label="Net Sales" value={formatGBP(totals?.net)} sub="Payments - refunds" />
               <StatCard label="Gross" value={formatGBP(totals?.gross)} sub="Payments only" />
               <StatCard label="Refunds" value={formatGBP(totals?.refunds)} sub="Refunds only" />
@@ -410,41 +765,44 @@ export default function ManagerReportsPage() {
             </div>
 
             {/* Charts + Breakdown */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
-              <div className="xl:col-span-8 rounded-2xl bg-white/[0.04] border border-white/10 p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+              <div className="lg:col-span-8 rounded-2xl bg-white/[0.04] border border-white/10 p-4">
                 <div className="flex items-end justify-between gap-3 mb-3">
                   <div>
-                    <div className="text-sm font-semibold">Daily Net Sales</div>
-                    <div className="text-xs text-slate-400">Last 30 points shown</div>
+                    <div className="text-sm font-semibold">Net Sales Trend</div>
+                    <div className="text-xs text-slate-400">Last 30 days</div>
                   </div>
                   <div className="text-xs text-slate-400">
                     Range: {from} → {to}
                   </div>
                 </div>
-                <MiniBarChart points={summary?.daily || []} valueKey="net" />
+                <AreaChart points={summary?.daily || []} valueKey="net" />
+                <div className="mt-2 text-[11px] text-slate-500">
+                  Range uses local time ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                </div>
               </div>
 
-              <div className="xl:col-span-4 rounded-2xl bg-white/[0.04] border border-white/10 p-4">
-                <div className="text-sm font-semibold mb-3">Payment Methods (Net)</div>
+              <div className="lg:col-span-4 rounded-2xl bg-white/[0.04] border border-white/10 p-4">
+                <div className="text-sm font-semibold mb-3">Payment Mix</div>
+                <Donut
+                  data={methodRows.map((r) => ({ label: r.label, value: r.value }))}
+                />
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  {methodRows.length === 0 ? (
-                    <div className="text-xs text-slate-400">No data</div>
-                  ) : (
-                    methodRows.map((r) => (
-                      <div
-                        key={r.label}
-                        className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-                      >
-                        <div className="text-xs text-slate-200 font-semibold">{r.label}</div>
-                        <div className="text-xs text-white">{formatGBP(r.value)}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="mt-4 text-sm font-semibold mb-2">Hourly Net (shape)</div>
-                <MiniBarChart points={summary?.hourly || []} valueKey="net" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+              <div className="lg:col-span-7 rounded-2xl bg-white/[0.04] border border-white/10 p-4">
+                <div className="text-sm font-semibold mb-2">Gross vs Refunds</div>
+                <StackedBars points={summary?.daily || []} />
+              </div>
+              <div className="lg:col-span-5 rounded-2xl bg-white/[0.04] border border-white/10 p-4">
+                <div className="text-sm font-semibold mb-2">Top 5 Items</div>
+                <HorizontalBars
+                  rows={(items || []).slice(0, 5).map((i) => ({
+                    label: i.name,
+                    value: i.revenue,
+                  }))}
+                />
               </div>
             </div>
           </div>
@@ -489,6 +847,23 @@ export default function ManagerReportsPage() {
                     className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
                   >
                     Export CSV
+                  </button>
+                  <button
+                    onClick={() => {
+                      const rows = [
+                        ["Item", "Category", "Qty", "Revenue"],
+                        ...items.map((it) => [
+                          it.name,
+                          it.category,
+                          String(it.qty),
+                          String(it.revenue.toFixed(2)),
+                        ]),
+                      ];
+                      printSectionPdf(`Items ${from} → ${to}`, rows, logo, settings?.brandName);
+                    }}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                  >
+                    Export PDF
                   </button>
                 </div>
               </div>

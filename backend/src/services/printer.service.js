@@ -46,6 +46,10 @@ async function printKitchenTicket(order) {
 
         const isDineIn = order.type === "dine_in";
         const tableName = order.table?.name || "-";
+        const takenBy =
+          order.openedByUser?.fullName ||
+          order.openedByUser?.username ||
+          "-";
 
         printer
           .align("CT")
@@ -53,6 +57,7 @@ async function printKitchenTicket(order) {
           .text("KITCHEN ORDER")
           .size(1, 1)
           .text(`Order: ${order.id.slice(0, 8)}`)
+          .text(`Taken by: ${takenBy}`)
           .text(isDineIn ? `TABLE: ${tableName}` : "TAKEAWAY")
           .text(formatTime(order.createdAt))
           .drawLine();

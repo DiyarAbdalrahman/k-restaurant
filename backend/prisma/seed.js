@@ -150,6 +150,13 @@ async function main() {
     role: "manager",
   });
 
+  await upsertUser({
+    username: "admin1",
+    password: "admin1234",
+    fullName: "Admin User",
+    role: "admin",
+  });
+
   console.log("✅ Users ready");
 
   console.log("🌱 Seeding menu...");
@@ -168,6 +175,28 @@ async function main() {
   }
 
   console.log("✅ Menu ready");
+
+  console.log("🌱 Seeding tables...");
+  for (let i = 1; i <= 20; i += 1) {
+    const legacy = `T${String(i).padStart(2, "0")}`;
+    const name = String(i);
+
+    // Rename legacy table name if it exists
+    const legacyRow = await prisma.diningTable.findFirst({ where: { name: legacy } });
+    if (legacyRow) {
+      await prisma.diningTable.update({
+        where: { id: legacyRow.id },
+        data: { name },
+      });
+      continue;
+    }
+
+    const existing = await prisma.diningTable.findFirst({ where: { name } });
+    if (!existing) {
+      await prisma.diningTable.create({ data: { name } });
+    }
+  }
+  console.log("✅ Tables ready");
 }
 
 /* =========================

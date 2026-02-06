@@ -4,6 +4,11 @@ const { Prisma } = require("@prisma/client");
 
 function parseDateOrNull(v) {
   if (!v) return null;
+  // If date-only string (YYYY-MM-DD), parse in local time
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m, d] = v.split("-").map((x) => Number(x));
+    return new Date(y, m - 1, d);
+  }
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return null;
   return d;
@@ -23,8 +28,9 @@ class ReportsService {
   async summary({ from, to, method = "all", type = "all" }) {
     const range = normalizeRange({ from, to });
 
-    const typeCond = type !== "all" ? Prisma.sql`AND o.type = ${type}` : Prisma.empty;
-    const methodCond = method !== "all" ? Prisma.sql`AND p.method = ${method}` : Prisma.empty;
+    const typeCond = type !== "all" ? Prisma.sql`AND o.type = ${type}::"OrderType"` : Prisma.empty;
+    const methodCond =
+      method !== "all" ? Prisma.sql`AND p.method = ${method}::"PaymentMethod"` : Prisma.empty;
 
     // daily net revenue
     const daily = await prisma.$queryRaw(
@@ -38,7 +44,6 @@ class ReportsService {
         FROM "Payment" p
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
-          AND o.status = 'paid'
           ${typeCond}
           ${methodCond}
         GROUP BY bucket
@@ -56,7 +61,6 @@ class ReportsService {
         FROM "Payment" p
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
-          AND o.status = 'paid'
           ${typeCond}
           ${methodCond}
         GROUP BY bucket
@@ -70,7 +74,7 @@ class ReportsService {
       where: {
         createdAt: { gte: range.from, lte: range.to },
         ...(method !== "all" ? { method } : {}),
-        order: { status: "paid", ...(type !== "all" ? { type } : {}) },
+        order: { ...(type !== "all" ? { type } : {}) },
       },
       _sum: { amount: true },
       _count: { _all: true },
@@ -85,7 +89,7 @@ class ReportsService {
       by: ["orderId"],
       where: {
         createdAt: { gte: range.from, lte: range.to },
-        order: { status: "paid", ...(type !== "all" ? { type } : {}) },
+        order: { ...(type !== "all" ? { type } : {}) },
         ...(method !== "all" ? { method } : {}),
       },
       _count: { orderId: true },
@@ -103,8 +107,8 @@ class ReportsService {
         FROM "Payment" p
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
-          AND o.status='paid'
           ${typeCond}
+          ${methodCond}
         GROUP BY p.method
         ORDER BY net DESC
       `
@@ -121,7 +125,6 @@ class ReportsService {
         JOIN "User" u ON u.id = p."createdBy"
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
-          AND o.status='paid'
           ${typeCond}
           ${methodCond}
         GROUP BY u."fullName"
@@ -152,48 +155,53 @@ class ReportsService {
     const take = Math.max(1, Math.min(Number(limit) || 20, 100));
     const query = String(q || "").trim();
 
-    const where = {
-      order: {
-        status: "paid",
-        createdAt: { gte: range.from, lte: range.to },
-        ...(type !== "all" ? { type } : {}),
-      },
-      menuItem: {
-        ...(categoryId !== "all" ? { categoryId } : {}),
-        ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
-      },
-    };
+    const typeCond = type !== "all" ? Prisma.sql`AND o.type = ${type}::"OrderType"` : Prisma.empty;
+    const catCond =
+      categoryId !== "all" ? Prisma.sql`AND mi."categoryId" = ${categoryId}` : Prisma.empty;
+    const queryCond =
+      query ? Prisma.sql`AND mi.name ILIKE ${`%${query}%`}` : Prisma.empty;
 
-    const grouped = await prisma.orderItem.groupBy({
-      by: ["menuItemId"],
-      where,
-      _sum: { quantity: true, totalPrice: true },
-    });
+    const rows = await prisma.$queryRaw(
+      Prisma.sql`
+        WITH paid_orders AS (
+          SELECT DISTINCT p."orderId"
+          FROM "Payment" p
+          JOIN "Order" o ON o.id = p."orderId"
+          WHERE p.kind = 'payment'
+            AND p."createdAt" BETWEEN ${range.from} AND ${range.to}
+            ${typeCond}
+        )
+        SELECT
+          oi."menuItemId" AS id,
+          SUM(oi.quantity)::float AS qty,
+          SUM(oi."totalPrice")::float AS revenue
+        FROM "OrderItem" oi
+        JOIN paid_orders po ON po."orderId" = oi."orderId"
+        JOIN "MenuItem" mi ON mi.id = oi."menuItemId"
+        WHERE 1=1
+          ${catCond}
+          ${queryCond}
+        GROUP BY oi."menuItemId"
+        ORDER BY ${sort === "slow" ? Prisma.sql`qty ASC` : Prisma.sql`qty DESC`}
+        LIMIT ${take}
+      `
+    );
 
-    const sorted = grouped
-      .map((g) => ({
-        menuItemId: g.menuItemId,
-        qty: Number(g._sum.quantity || 0),
-        revenue: Number(g._sum.totalPrice || 0),
-      }))
-      .sort((a, b) => (sort === "slow" ? a.qty - b.qty : b.qty - a.qty))
-      .slice(0, take);
-
-    const ids = sorted.map((s) => s.menuItemId);
+    const ids = (rows || []).map((r) => r.id);
     const items = await prisma.menuItem.findMany({
       where: { id: { in: ids } },
       include: { category: true },
     });
     const map = new Map(items.map((i) => [i.id, i]));
 
-    return sorted.map((s) => {
-      const it = map.get(s.menuItemId);
+    return (rows || []).map((r) => {
+      const it = map.get(r.id);
       return {
-        id: s.menuItemId,
+        id: r.id,
         name: it?.name || "Unknown item",
         category: it?.category?.name || "",
-        qty: s.qty,
-        revenue: s.revenue,
+        qty: Number(r.qty || 0),
+        revenue: Number(r.revenue || 0),
       };
     });
   }

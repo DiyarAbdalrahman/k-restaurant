@@ -7,12 +7,46 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  pos
+  kitchen
+  manager
+  admin
+  waiter
+}
+
+enum OrderType {
+  dine_in
+  takeaway
+}
+
+enum OrderStatus {
+  open
+  sent_to_kitchen
+  in_progress
+  ready
+  served
+  paid
+  cancelled
+}
+
+enum PaymentMethod {
+  cash
+  card
+}
+
+enum PaymentKind {
+  payment
+  refund
+}
+
 model User {
   id           String    @id @default(uuid())
   username     String    @unique
   passwordHash String
+  pinHash      String?
   fullName     String
-  role         String
+  role         UserRole
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   ordersOpened Order[]   @relation("UserOpenedOrders")
@@ -23,6 +57,7 @@ model DiningTable {
   id        String   @id @default(uuid())
   name      String
   area      String?
+  sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   orders    Order[]
@@ -32,7 +67,9 @@ model MenuCategory {
   id        String     @id @default(uuid())
   name      String
   sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
   items     MenuItem[]
+  promotions PromotionCategory[]
   createdAt DateTime   @default(now())
 }
 
@@ -42,17 +79,19 @@ model MenuItem {
   description String?
   basePrice   Float
   sku         String?
+  imageUrl    String?
   isActive    Boolean      @default(true)
   categoryId  String
   category    MenuCategory @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
+  promotionItems PromotionItem[]
   createdAt   DateTime     @default(now())
 }
 
 model Order {
   id             String   @id @default(uuid())
-  type           String
-  status         String   @default("open")
+  type           OrderType
+  status         OrderStatus @default(open)
   notes          String?
 
   subtotal       Float
@@ -72,6 +111,7 @@ model Order {
 
   items    OrderItem[]
   payments Payment[]
+  promotions OrderPromotion[]
 }
 
 model OrderItem {
@@ -92,8 +132,8 @@ model OrderItem {
 model Payment {
   id        String   @id @default(uuid())
   amount    Float
-  method    String
-  kind      String   @default("payment") // ✅ NEW: "payment" | "refund"
+  method    PaymentMethod
+  kind      PaymentKind   @default(payment)
   note      String?
   createdAt DateTime @default(now())
 
@@ -104,3 +144,118 @@ model Payment {
   user      User   @relation(fields: [createdBy], references: [id])
 }
 
+model Promotion {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   // "percent" | "fixed"
+  amount    Float
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  categories PromotionCategory[]
+  items      PromotionItem[]
+  orders     OrderPromotion[]
+}
+
+model PromotionCategory {
+  id           String   @id @default(uuid())
+  promotionId  String
+  categoryId   String
+  promotion    Promotion   @relation(fields: [promotionId], references: [id])
+  category     MenuCategory @relation(fields: [categoryId], references: [id])
+}
+
+model PromotionItem {
+  id           String   @id @default(uuid())
+  promotionId  String
+  menuItemId   String
+  promotion    Promotion @relation(fields: [promotionId], references: [id])
+  menuItem     MenuItem  @relation(fields: [menuItemId], references: [id])
+}
+
+model OrderPromotion {
+  id           String   @id @default(uuid())
+  orderId      String
+  promotionId  String
+  amount       Float
+  createdAt    DateTime @default(now())
+
+  order        Order     @relation(fields: [orderId], references: [id])
+  promotion    Promotion @relation(fields: [promotionId], references: [id])
+}
+
+model SyncOutbox {
+  id          String   @id @default(uuid())
+  type        String
+  payload     Json
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+}
+
+model Settings {
+  id                        String   @id @default(uuid())
+  brandName                 String   @default("Kurda Restaurant")
+  brandTagline              String   @default("")
+  brandColor                String   @default("#e11d48")
+  accentColor               String   @default("#f43f5e")
+  backgroundColor           String   @default("#000000")
+  cardColor                 String   @default("#0b0b0b")
+  logoUrl                   String?
+  headerImageUrl            String?
+  receiptFooterText         String   @default("Thank you!")
+  receiptHeaderText         String   @default("")
+  receiptAddress            String   @default("")
+  receiptPhone              String   @default("")
+  receiptShowLogo           Boolean  @default(true)
+  receiptShowAddress        Boolean  @default(false)
+  receiptShowPhone          Boolean  @default(false)
+  receiptShowBrandName      Boolean  @default(true)
+  receiptShowOrderId        Boolean  @default(true)
+  receiptShowTableType      Boolean  @default(true)
+  receiptShowTakenBy        Boolean  @default(true)
+  receiptShowTime           Boolean  @default(true)
+  receiptShowItems          Boolean  @default(true)
+  receiptShowItemNotes      Boolean  @default(true)
+  receiptShowTotals         Boolean  @default(true)
+  receiptShowDiscounts      Boolean  @default(true)
+  receiptShowBalance        Boolean  @default(true)
+  receiptShowPaymentMethod  Boolean  @default(true)
+  receiptShowFooter         Boolean  @default(true)
+  receiptPaperSize          String   @default("80mm")
+  defaultTaxPercent         Float    @default(0)
+  defaultServiceChargePercent Float  @default(0)
+  menuShowItemImages        Boolean  @default(false)
+  posShowPaymentHistory     Boolean  @default(true)
+  posAutoPrintReceiptOnPayment Boolean @default(false)
+  posShowHeaderImage        Boolean  @default(false)
+  posShowFavorites          Boolean  @default(true)
+  posShowRecent             Boolean  @default(true)
+  posShowCategoryShortcuts  Boolean  @default(true)
+  posMenuCardSize           String   @default("md")
+  paymentDefaultMethod      String   @default("cash")
+  paymentAllowOverpay       Boolean  @default(false)
+  paymentAllowZero          Boolean  @default(true)
+  refundRequireManagerPin   Boolean  @default(false)
+  refundMaxAmount           Float    @default(0)
+  posCompactDefault         Boolean  @default(false)
+  posShowPanelDefault       Boolean  @default(false)
+  posAutoShowPanel          Boolean  @default(true)
+  posPanelAlwaysVisible     Boolean  @default(false)
+  posDefaultOrderType       String   @default("dine_in")
+  posRequireTableSelection  Boolean  @default(false)
+  posAutoOpenCheckout       Boolean  @default(true)
+  posHideReadyMinutes       Int      @default(10)
+  kitchenSoundEnabled       Boolean  @default(true)
+  kitchenLoudSound          Boolean  @default(false)
+  kitchenAutoHideReadyMinutes Int    @default(10)
+  kitchenAutoPrint          Boolean  @default(true)
+  kitchenAutoRefreshSeconds Int      @default(45)
+  kitchenShowAgeBands       Boolean  @default(true)
+  securityInactivityLogoutMinutes Int @default(0)
+  securityInactivityLockMinutes Int   @default(0)
+  securityAllowUserSwitching Boolean  @default(true)
+  updatedAt                 DateTime @updatedAt
+  createdAt                 DateTime @default(now())
+}

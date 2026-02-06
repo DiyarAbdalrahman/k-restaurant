@@ -2,12 +2,13 @@
 const prisma = require("../../db/prisma");
 
 class MenuService {
-  getCategoriesWithItems() {
+  getCategoriesWithItems(includeInactive = false) {
     return prisma.menuCategory.findMany({
+      where: includeInactive ? {} : { isActive: true },
       orderBy: { sortOrder: "asc" },
       include: {
         items: {
-          where: { isActive: true },
+          ...(includeInactive ? {} : { where: { isActive: true } }),
           orderBy: { name: "asc" },
         },
       },
@@ -20,6 +21,20 @@ class MenuService {
     });
   }
 
+  updateCategory(id, data) {
+    return prisma.menuCategory.update({
+      where: { id },
+      data,
+    });
+  }
+
+  deleteCategory(id) {
+    return prisma.menuCategory.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
   createItem(data) {
     return prisma.menuItem.create({
       data: {
@@ -28,8 +43,20 @@ class MenuService {
         description: data.description,
         basePrice: data.basePrice,
         sku: data.sku,
+        imageUrl: data.imageUrl,
       },
     });
+  }
+
+  updateItem(id, data) {
+    return prisma.menuItem.update({
+      where: { id },
+      data,
+    });
+  }
+
+  deleteItem(id) {
+    return prisma.menuItem.delete({ where: { id } });
   }
 }
 

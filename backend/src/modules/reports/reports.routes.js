@@ -8,5 +8,6 @@ router.use(authMiddleware, requireRole("manager", "admin"));
 
 router.get("/summary", reportsController.summary);
 router.get("/items", reportsController.items);
+router.get("/slow-alerts", reportsController.slowAlerts);
 
 module.exports = router;

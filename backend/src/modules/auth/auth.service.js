@@ -15,7 +15,7 @@ class AuthService {
         username: params.username,
         passwordHash: hashed,
         fullName: params.fullName,
-        role: params.role || "waiter",
+        role: params.role || "pos",
       },
     });
 
@@ -32,6 +32,23 @@ class AuthService {
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      throw { status: 401, message: "Invalid credentials" };
+    }
+
+    return this.buildAuthResponse(user);
+  }
+
+  async pinLogin(username, pin) {
+    const user = await prisma.user.findUnique({
+      where: { username },
+    });
+
+    if (!user || !user.pinHash) {
+      throw { status: 401, message: "Invalid credentials" };
+    }
+
+    const valid = await bcrypt.compare(pin, user.pinHash);
     if (!valid) {
       throw { status: 401, message: "Invalid credentials" };
     }

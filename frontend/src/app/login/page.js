@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { saveAuth, getUser } from "@/lib/auth";
+import { useSettings } from "@/lib/settings";
 
 const ROLE_TO_ROUTE = {
   pos: "/pos",
@@ -12,6 +13,8 @@ const ROLE_TO_ROUTE = {
 };
 
 export default function LoginPage() {
+  const { settings } = useSettings();
+  const logo = settings?.logoUrl || "/logo.png";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,15 +60,15 @@ export default function LoginPage() {
     <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="mb-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-red-600/20 border border-red-500/30 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-red-500" />
+          <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden">
+            <img src={logo} alt="Kurda Restaurant" className="w-full h-full object-cover" />
           </div>
           <div>
             <div className="text-2xl font-extrabold leading-tight">
-              Restaurant System
+              K-Restaurant System
             </div>
             <div className="text-xs text-slate-400">
-              POS • Kitchen • Manager
+              
             </div>
           </div>
         </div>
@@ -95,7 +98,7 @@ export default function LoginPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   autoFocus
                   className="mt-1 w-full bg-transparent outline-none text-sm"
-                  placeholder="e.g. pos1 / kitchen1 / manager1"
+                  placeholder="username"
                 />
               </div>
 
@@ -125,12 +128,12 @@ export default function LoginPage() {
                 {loading ? "Signing in..." : "Sign in"}
               </button>
 
-              <div className="text-[11px] text-slate-500 text-center">
+              {/* <div className="text-[11px] text-slate-500 text-center">
                 Roles: <span className="text-slate-300">pos</span>,{" "}
                 <span className="text-slate-300">kitchen</span>,{" "}
                 <span className="text-slate-300">manager</span>,{" "}
                 <span className="text-slate-300">admin</span>
-              </div>
+              </div> */}
             </form>
           </div>
         </div>

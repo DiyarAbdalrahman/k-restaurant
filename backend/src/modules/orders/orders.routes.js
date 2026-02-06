@@ -5,6 +5,8 @@ const {
   authMiddleware,
   requireRole,
 } = require("../../middleware/auth.middleware");
+const { validateBody } = require("../../middleware/validate.middleware");
+const { orderCreateSchema, orderStatusSchema } = require("../../validation/schemas");
 
 const ordersRouter = Router();
 
@@ -16,8 +18,13 @@ ordersRouter.get("/", (req, res, next) =>
 );
 
 // CREATE order
-ordersRouter.post("/", (req, res, next) =>
+ordersRouter.post("/", validateBody(orderCreateSchema), (req, res, next) =>
   ordersController.create(req, res, next)
+);
+
+// Lookup by ID prefix
+ordersRouter.get("/lookup", (req, res, next) =>
+  ordersController.lookup(req, res, next)
 );
 
 // GET one
@@ -28,33 +35,34 @@ ordersRouter.get("/:id", (req, res, next) =>
 // Generic status update
 ordersRouter.patch(
   "/:id/status",
-  requireRole("waiter", "chef", "admin","pos"),
+  requireRole("waiter", "kitchen", "admin", "pos"),
+  validateBody(orderStatusSchema),
   (req, res, next) => ordersController.updateStatus(req, res, next)
 );
 
 // Shortcuts
 ordersRouter.post(
   "/:id/send-to-kitchen",
-  requireRole("waiter", "admin","pos"),
+  requireRole("waiter", "admin", "pos"),
   (req, res, next) => ordersController.sendToKitchen(req, res, next)
 );
 
 ordersRouter.post(
   "/:id/in-progress",
-  requireRole("chef", "admin","pos"),
+  requireRole("kitchen", "admin", "pos"),
   (req, res, next) => ordersController.markInProgress(req, res, next)
 );
 
 ordersRouter.post(
   "/:id/ready",
-  requireRole("chef", "admin","pos"),
+  requireRole("kitchen", "admin", "pos"),
   (req, res, next) => ordersController.markReady(req, res, next)
 );
 
 // MANUAL PRINT
 ordersRouter.post(
   "/:id/print-kitchen",
-  requireRole("chef", "admin", "waiter","pos"),
+  requireRole("kitchen", "admin", "waiter", "pos"),
   (req, res, next) => ordersController.printKitchen(req, res, next)
 );
 

@@ -27,6 +27,29 @@ class AuthController {
     }
   }
 
+  async pinLogin(req, res, next) {
+    try {
+      const { username, pin } = req.body;
+      const result = await authService.pinLogin(username, pin);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async listSwitchUsers(req, res, next) {
+    try {
+      const users = await require("../../db/prisma").user.findMany({
+        where: { isActive: true },
+        select: { id: true, username: true, fullName: true, role: true },
+        orderBy: { username: "asc" },
+      });
+      res.json(users);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   me(req, res) {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });

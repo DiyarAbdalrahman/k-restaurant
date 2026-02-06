@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
+const path = require("path");
 
 const { authRouter } = require("./modules/auth/auth.routes");
 const usersRouter = require("./modules/users/users.routes");
@@ -8,6 +9,8 @@ const menuRouter = require("./modules/menu/menu.routes");
 const ordersRouter = require("./modules/orders/orders.routes");
 const paymentsRouter = require("./modules/payments/payments.routes");
 const tablesRouter = require("./modules/tables/tables.routes");
+const settingsRouter = require("./modules/settings/settings.routes");
+const promotionsRouter = require("./modules/promotions/promotions.routes");
 
 const { errorHandler } = require("./middleware/error.middleware");
 
@@ -18,8 +21,7 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 app.use("/api/reports", require("./modules/reports/reports.routes"));
-
-app.use("/api/payments", require("./modules/payments/payments.routes"));
+app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
 
 
 // Health check
@@ -34,6 +36,8 @@ app.use("/api/menu", menuRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/tables", tablesRouter);
+app.use("/api/settings", settingsRouter);
+app.use("/api/promotions", promotionsRouter);
 
 // 404 handler
 app.use((_req, res) => {

@@ -20,7 +20,53 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--bg, var(--background));
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans);
+}
+
+/* Modern toggle style for all checkboxes */
+input[type="checkbox"] {
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  vertical-align: middle;
+}
+input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+input[type="checkbox"]:checked {
+  background: var(--brand, #e11d48);
+  border-color: var(--brand, #e11d48);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+input[type="checkbox"]:checked::after {
+  transform: translateX(16px);
+}
+
+.brand-bg {
+  background-color: var(--brand, #e11d48);
+}
+.brand-border {
+  border-color: var(--brand, #e11d48);
+}
+.brand-text {
+  color: var(--brand, #e11d48);
+}
+.card-bg {
+  background-color: var(--card, #0b0b0b);
 }

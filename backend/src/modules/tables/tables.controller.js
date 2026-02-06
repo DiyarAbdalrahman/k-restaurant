@@ -13,9 +13,29 @@ class TablesController {
 
   async create(req, res, next) {
     try {
-      const { name, area } = req.body;
-      const table = await tablesService.createTable(name, area);
+      const { name, area, sortOrder } = req.body;
+      const table = await tablesService.createTable(name, area, sortOrder);
       res.status(201).json(table);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async update(req, res, next) {
+    try {
+      const { id } = req.params;
+      const table = await tablesService.updateTable(id, req.body);
+      res.json(table);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async remove(req, res, next) {
+    try {
+      const { id } = req.params;
+      await tablesService.deleteTable(id);
+      res.json({ message: "Table deleted" });
     } catch (err) {
       next(err);
     }

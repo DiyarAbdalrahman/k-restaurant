@@ -1,0 +1,18 @@
+-- AlterTable
+ALTER TABLE "Settings" ADD COLUMN     "posAutoShowPanel" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "posShowPanelDefault" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "receiptAddress" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "receiptHeaderText" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "receiptPhone" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "receiptShowAddress" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "receiptShowBrandName" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowFooter" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowItems" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowLogo" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowOrderId" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowPaymentMethod" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowPhone" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "receiptShowTableType" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowTakenBy" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowTime" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "receiptShowTotals" BOOLEAN NOT NULL DEFAULT true;

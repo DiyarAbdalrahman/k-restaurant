@@ -65,6 +65,7 @@ class OrdersService {
           menuItemId: item.menuItemId,
           quantity: item.quantity,
           notes: item.notes || "",
+          guest: Number(item.guest) || 1,
           unitPrice: menuItem.basePrice,
           totalPrice: menuItem.basePrice * item.quantity,
         };

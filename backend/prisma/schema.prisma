@@ -120,6 +120,7 @@ model OrderItem {
   unitPrice  Float
   totalPrice Float
   notes      String?
+  guest      Int      @default(1)
   createdAt  DateTime @default(now())
 
   orderId String

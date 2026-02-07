@@ -115,13 +115,22 @@ async function printKitchenTicket(order) {
       .drawLine();
 
     printer.align("LT").text("Items:");
-    order.items.forEach((item) => {
-      const name = item.menuItem?.name || "Item";
-      const qty = item.quantity;
-      printer.text(`${qty} x ${name}`);
-      if (item.notes) {
-        printer.text(`  > ${item.notes}`);
-      }
+    const groups = new Map();
+    (order.items || []).forEach((item) => {
+      const guest = Number(item.guest || 1);
+      if (!groups.has(guest)) groups.set(guest, []);
+      groups.get(guest).push(item);
+    });
+    Array.from(groups.keys()).sort((a, b) => a - b).forEach((guest) => {
+      printer.text(`Guest ${guest}`);
+      groups.get(guest).forEach((item) => {
+        const name = item.menuItem?.name || "Item";
+        const qty = item.quantity;
+        printer.text(`  ${qty} x ${name}`);
+        if (item.notes) {
+          printer.text(`   > ${item.notes}`);
+        }
+      });
     });
 
     printer.drawLine();

@@ -21,6 +21,7 @@ const positiveIntFromString = numFromString(z.number().int().positive());
 const orderItemSchema = z.object({
   menuItemId: z.string().min(1),
   quantity: positiveIntFromString,
+  guest: positiveIntFromString.min(1).max(20),
   notes: z.string().optional().default(""),
 });
 

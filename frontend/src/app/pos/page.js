@@ -85,6 +85,8 @@ export default function PosPage() {
     reason: null,
     checkedAt: null,
   });
+  const [currentGuest, setCurrentGuest] = useState(1);
+  const maxGuests = 20;
 
   // Modern menu controls
   const [search, setSearch] = useState("");
@@ -530,17 +532,25 @@ export default function PosPage() {
     if (selectedOrder) setSelectedOrder(null);
 
     setCart((prev) => {
-      const existing = prev.find((c) => c.id === item.id && !c.note);
+      const existing = prev.find(
+        (c) => c.id === item.id && c.guest === currentGuest && !c.note
+      );
       if (existing) {
-        return prev.map((c) => (c.id === item.id && !c.note ? { ...c, qty: c.qty + 1 } : c));
+        return prev.map((c) =>
+          c.id === item.id && c.guest === currentGuest && !c.note
+            ? { ...c, qty: c.qty + 1 }
+            : c
+        );
       }
-      return [...prev, { ...item, qty: 1, note: "" }];
+      return [...prev, { ...item, qty: 1, note: "", guest: currentGuest }];
     });
   }
 
   function removeOneFromCart(item) {
     setCart((prev) => {
-      const idx = prev.findIndex((c) => c.id === item.id && !c.note);
+      const idx = prev.findIndex(
+        (c) => c.id === item.id && c.guest === currentGuest && !c.note
+      );
       if (idx === -1) return prev;
       const copy = [...prev];
       if (copy[idx].qty <= 1) copy.splice(idx, 1);
@@ -620,6 +630,7 @@ export default function PosPage() {
           menuItemId: c.id,
           quantity: c.qty,
           notes: c.note || "",
+          guest: Number(c.guest) || 1,
         })),
       };
 
@@ -1660,7 +1671,9 @@ export default function PosPage() {
                 >
                   {visibleItems.map((item) => {
                     const isFav = favorites.includes(item.id);
-                    const inCart = cart.find((c) => c.id === item.id && !c.note);
+                    const inCart = cart.find(
+                      (c) => c.id === item.id && c.guest === currentGuest && !c.note
+                    );
                     const showItemImage = settings?.menuShowItemImages && item.imageUrl;
                     const itemImageSrc = showItemImage ? resolveMediaUrl(item.imageUrl) : "";
 
@@ -2145,6 +2158,25 @@ export default function PosPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Guest</div>
+                        <div className="text-xs text-white/60">Required</div>
+                      </div>
+                      <div className="mt-2">
+                        <select
+                          value={currentGuest}
+                          onChange={(e) => setCurrentGuest(Number(e.target.value))}
+                          className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm outline-none"
+                        >
+                          {Array.from({ length: maxGuests }, (_, i) => i + 1).map((g) => (
+                            <option key={g} value={g}>
+                              Guest {g}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     {["admin", "manager"].includes(user?.role) && eligiblePromos.length > 0 && (
                       <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                         <div className="flex items-center justify-between">
@@ -2190,6 +2222,7 @@ export default function PosPage() {
                         <div className="flex justify-between gap-3">
                           <div className="min-w-0">
                             <div className="font-semibold text-sm truncate">{item.name}</div>
+                            <div className="text-xs text-white/60">Guest {Number(item.guest || 1)}</div>
                             <div className="text-xs text-white/60">
                               £{Number(item.basePrice || 0).toFixed(2)} × {item.qty} ={" "}
                               <span className="text-white">
@@ -2221,6 +2254,27 @@ export default function PosPage() {
                         <div className="mt-3">
                           <div className="text-xs text-white/60">Quantity</div>
                           <div className="text-sm font-semibold">{item.qty}</div>
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="text-xs text-white/60">Guest</div>
+                          <select
+                            value={Number(item.guest || 1)}
+                            onChange={(e) =>
+                              setCart((prev) =>
+                                prev.map((c, i) =>
+                                  i === index ? { ...c, guest: Number(e.target.value) } : c
+                                )
+                              )
+                            }
+                            className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none"
+                          >
+                            {Array.from({ length: maxGuests }, (_, i) => i + 1).map((g) => (
+                              <option key={g} value={g}>
+                                Guest {g}
+                              </option>
+                            ))}
+                          </select>
                         </div>
 
                         <input

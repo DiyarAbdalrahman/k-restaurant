@@ -137,6 +137,18 @@ class OrdersController {
       next(err);
     }
   }
+
+  async delete(req, res, next) {
+    try {
+      const deleted = await ordersService.deleteOrder(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      res.json({ message: "Order deleted", id: deleted.id });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 const ordersController = new OrdersController();

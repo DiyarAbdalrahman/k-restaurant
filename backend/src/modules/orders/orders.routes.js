@@ -72,4 +72,11 @@ ordersRouter.post(
   (req, res, next) => ordersController.printReceipt(req, res, next)
 );
 
+// ADMIN DELETE (history cleanup)
+ordersRouter.delete(
+  "/:id",
+  requireRole("admin"),
+  (req, res, next) => ordersController.delete(req, res, next)
+);
+
 module.exports = ordersRouter;

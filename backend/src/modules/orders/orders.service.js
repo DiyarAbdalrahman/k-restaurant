@@ -199,6 +199,21 @@ class OrdersService {
   return updated;
 }
 
+  // DELETE ORDER (admin only)
+  async deleteOrder(id) {
+    const existing = await prisma.order.findUnique({ where: { id } });
+    if (!existing) return null;
+
+    await prisma.$transaction([
+      prisma.orderPromotion.deleteMany({ where: { orderId: id } }),
+      prisma.payment.deleteMany({ where: { orderId: id } }),
+      prisma.orderItem.deleteMany({ where: { orderId: id } }),
+      prisma.order.delete({ where: { id } }),
+    ]);
+
+    return existing;
+  }
+
 }
 
 const ordersService = new OrdersService();

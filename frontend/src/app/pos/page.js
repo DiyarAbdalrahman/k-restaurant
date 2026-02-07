@@ -1005,6 +1005,28 @@ export default function PosPage() {
     }
   }
 
+  async function deleteOrderById(orderId) {
+    if (!orderId) return;
+    const ok = await askConfirm({
+      title: "Delete order?",
+      body: "This will permanently delete the order and its payments. Admin only.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+    });
+    if (!ok) return;
+
+    try {
+      await api.delete(`/orders/${orderId}`);
+      toast.success("Order deleted");
+      setPrintPreview(null);
+      setPrintSearch("");
+      await loadOrders();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete order");
+    }
+  }
+
   async function confirmLeaveUnpaid() {
     if (!selectedOrder) return true;
     if (checkoutTotals.remaining > 0.001) {
@@ -2147,6 +2169,15 @@ export default function PosPage() {
                       >
                         Print Receipt
                       </button>
+                      {user?.role === "admin" && (
+                        <button
+                          type="button"
+                          onClick={() => deleteOrderById(printPreview.id)}
+                          className="mt-2 w-full rounded-xl py-2 text-xs font-semibold bg-red-600/80 hover:bg-red-600 border border-red-500/40"
+                        >
+                          Delete Order
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

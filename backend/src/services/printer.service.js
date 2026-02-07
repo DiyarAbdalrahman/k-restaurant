@@ -135,6 +135,7 @@ async function printKitchenTicket(order) {
           );
         }
       });
+      printer.drawLine();
     });
 
     printer.drawLine();

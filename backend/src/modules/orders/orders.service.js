@@ -52,26 +52,70 @@ class OrdersService {
   // CREATE ORDER
   async createOrder(params) {
     const settings = await prisma.settings.findFirst();
-    const itemsData = await Promise.all(
+    const itemsWithMenu = await Promise.all(
       params.items.map(async (item) => {
         const menuItem = await prisma.menuItem.findUnique({
           where: { id: item.menuItemId },
+          include: { category: true },
         });
 
         if (!menuItem) {
           throw new Error(`Menu item not found: ${item.menuItemId}`);
         }
 
-        return {
-          menuItemId: item.menuItemId,
-          quantity: item.quantity,
-          notes: item.notes || "",
-          guest: Number(item.guest) || 1,
-          unitPrice: menuItem.basePrice,
-          totalPrice: menuItem.basePrice * item.quantity,
-        };
+        return { item, menuItem };
       })
     );
+
+    const isSoup = (menuItem) =>
+      String(menuItem?.category?.name || "").trim().toLowerCase() === "soup";
+    const isMain = (menuItem) =>
+      String(menuItem?.category?.name || "").trim().toLowerCase() === "mains";
+
+    const platterFreeMap = {
+      ONE: 1,
+      TWO: 2,
+      FOUR: 4,
+      SIX: 6,
+    };
+    const getPlatterFree = (name) => {
+      const upper = String(name || "").toUpperCase();
+      const match = upper.match(/PLATTER.*(ONE|TWO|FOUR|SIX)/);
+      if (!match) return 0;
+      return platterFreeMap[match[1]] || 0;
+    };
+
+    let freeSoupRemaining = 0;
+    if (itemsWithMenu.some(({ menuItem }) => isMain(menuItem))) {
+      freeSoupRemaining += 1;
+    }
+    for (const { menuItem } of itemsWithMenu) {
+      freeSoupRemaining += getPlatterFree(menuItem?.name);
+    }
+
+    const itemsData = itemsWithMenu.map(({ item, menuItem }) => {
+      const qty = Number(item.quantity || 0);
+      const base = Number(menuItem.basePrice || 0);
+      let unitPrice = base;
+      let totalPrice = base * qty;
+
+      if (isSoup(menuItem) && freeSoupRemaining > 0 && qty > 0) {
+        const freeQty = Math.min(qty, freeSoupRemaining);
+        const paidQty = qty - freeQty;
+        totalPrice = base * paidQty;
+        if (paidQty === 0) unitPrice = 0;
+        freeSoupRemaining -= freeQty;
+      }
+
+      return {
+        menuItemId: item.menuItemId,
+        quantity: qty,
+        notes: item.notes || "",
+        guest: Number(item.guest) || 1,
+        unitPrice,
+        totalPrice,
+      };
+    });
 
     const subtotal = itemsData.reduce((sum, it) => sum + Number(it.totalPrice || 0), 0);
     let discountAmount = Number(params.discountAmount) || 0;

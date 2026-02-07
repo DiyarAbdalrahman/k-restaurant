@@ -165,10 +165,59 @@ function normalizePrintText(input) {
     .replace(/⅞/g, "7/8");
 }
 
+function getReceiptWidth(settings) {
+  return settings?.receiptPaperSize === "58mm" ? 32 : 42;
+}
+
+function wrapText(text, width) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [""];
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    if (!line) {
+      line = word;
+      continue;
+    }
+    if ((line + " " + word).length <= width) {
+      line = line + " " + word;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function printWrapped(printer, text, width) {
+  wrapText(normalizePrintText(text), width).forEach((line) => {
+    printer.text(line);
+  });
+}
+
+function printItemLine(printer, { qty, name, amount }, width) {
+  const amountText = formatGBP(amount);
+  const amountWidth = Math.max(10, amountText.length + 1);
+  const leftWidth = Math.max(10, width - amountWidth);
+  const label = `${qty} x ${normalizePrintText(name)}`;
+  const lines = wrapText(label, leftWidth);
+  if (lines.length === 0) {
+    printer.text(amountText);
+    return;
+  }
+  const firstLeft = lines[0].padEnd(leftWidth, " ");
+  printer.text(`${firstLeft}${amountText}`);
+  for (let i = 1; i < lines.length; i += 1) {
+    printer.text(lines[i]);
+  }
+}
+
 async function printCustomerReceipt(order, settings) {
   const brand = settings?.brandName || "Kurda Restaurant";
   const header = settings?.receiptHeaderText || "";
   const footer = settings?.receiptFooterText || "Thank you!";
+  const width = getReceiptWidth(settings);
   const show = {
     brandName: settings?.receiptShowBrandName !== false,
     orderId: settings?.receiptShowOrderId !== false,
@@ -193,8 +242,8 @@ async function printCustomerReceipt(order, settings) {
 
   return sendToPrinter((printer) => {
     printer.align("CT").size(2, 2).text("RECEIPT").size(1, 1);
-    if (show.brandName) printer.text(brand);
-    if (header) printer.text(header);
+    if (show.brandName) printWrapped(printer, brand, width);
+    if (header) printWrapped(printer, header, width);
     printer.drawLine();
 
     if (show.orderId) printer.text(`Order: ${String(order.id).slice(0, 8)}`);
@@ -210,12 +259,12 @@ async function printCustomerReceipt(order, settings) {
     if (show.items) {
       printer.drawLine();
       order.items.forEach((item) => {
-        const name = normalizePrintText(item.menuItem?.name || "Item");
+        const name = item.menuItem?.name || "Item";
         const qty = item.quantity;
         const amount = Number(item.totalPrice || item.unitPrice * item.quantity || 0).toFixed(2);
-        printer.text(`${qty} x ${name}  ${formatGBP(amount)}`);
+        printItemLine(printer, { qty, name, amount }, width);
         if (show.itemNotes && item.notes) {
-          printer.text(`  > ${normalizePrintText(item.notes)}`);
+          printWrapped(printer, `  > ${item.notes}`, width);
         }
       });
     }
@@ -236,7 +285,7 @@ async function printCustomerReceipt(order, settings) {
 
     if (show.footer) {
       printer.drawLine();
-      printer.text(footer);
+      printWrapped(printer, footer, width);
     }
     printer.newLine().cut();
   }, "CP858");

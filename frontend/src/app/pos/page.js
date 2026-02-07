@@ -1829,6 +1829,8 @@ export default function PosPage() {
                   })
                   .map((order) => {
                   const isSelected = selectedOrder?.id === order.id;
+                  const items = order.items || [];
+                  const itemsPreview = items.slice(0, compactMode ? 2 : 4);
                   return (
                     <button
                       key={order.id}
@@ -1855,31 +1857,52 @@ export default function PosPage() {
                       ].join(" ")}
                       type="button"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm">#{String(order.id).slice(0, 6)}</span>
-                        <span className="text-[11px] text-white/60">{order.type}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm">
+                              #{String(order.id).slice(0, 6)}
+                            </span>
+                            <span className="text-[10px] uppercase tracking-wide text-white/50">
+                              {order.type}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-white/70 mt-0.5">
+                            {order.type === "dine_in"
+                              ? `Table: ${order.table?.name || "?"}`
+                              : "Takeaway"}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-white/90 text-sm font-semibold">
+                            £{Number(order.total || 0).toFixed(2)}
+                          </div>
+                          <div className="text-[11px] text-white/50">
+                            Items: {items.reduce((s, it) => s + Number(it.quantity || 0), 0)}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="mt-1 text-white/90 text-sm">
-                        £{Number(order.total || 0).toFixed(2)}
-                      </div>
-
-                      <div className="text-[11px] text-white/60">
-                        {order.type === "dine_in"
-                          ? `Table: ${order.table?.name || "?"}`
-                          : "Takeaway"}
-                      </div>
-
-                      <div className="text-[11px] text-white/50 mt-1">
-                        Items: {(order.items || []).reduce((s, it) => s + Number(it.quantity || 0), 0)}
-                      </div>
-
-                      <div className="mt-1 text-[11px] text-white/60 line-clamp-2">
-                        {(order.items || [])
-                          .slice(0, 4)
-                          .map((it) => `${it.quantity}×${it.menuItem?.name || "Item"}`)
-                          .join(", ")}
-                        {(order.items || []).length > 4 ? "…" : ""}
+                      <div className="mt-2 space-y-1 text-[11px] text-white/70">
+                        {itemsPreview.map((it, idx) => (
+                          <div key={`${it.id || idx}`} className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-white/80">{it.quantity}×</span>{" "}
+                              <span className="truncate inline-block max-w-full">
+                                {it.menuItem?.name || "Item"}
+                              </span>
+                            </div>
+                            <div className="text-white/50 shrink-0">
+                              £{Number(it.totalPrice || 0).toFixed(2)}
+                            </div>
+                          </div>
+                        ))}
+                        {items.length > itemsPreview.length ? (
+                          <div className="text-[10px] text-white/45">
+                            +{items.length - itemsPreview.length} more item(s)
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="mt-2">

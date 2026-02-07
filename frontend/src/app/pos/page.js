@@ -720,7 +720,7 @@ export default function PosPage() {
       const total = Number(freshOrder.total || 0);
       const remaining = Math.max(0, total - paid);
       if (freshOrder.status === "paid" || remaining <= 0.001) {
-        if (settings?.posAutoPrintReceiptOnPayment || printAfter) {
+        if (printAfter) {
           printOrderReceipt(freshOrder);
         }
         setSelectedOrder(null);
@@ -899,7 +899,7 @@ export default function PosPage() {
 
   function getOrderType() {
     if (selectedTableId) return "dine_in";
-    return defaultOrderType === "takeaway" ? "takeaway" : "dine_in";
+    return "takeaway";
   }
 
   function printRefundReceipt(refund) {
@@ -1048,9 +1048,7 @@ export default function PosPage() {
     : null;
   const headerOrderLabel = selectedTableName
     ? `Table: ${selectedTableName}`
-    : defaultOrderType === "takeaway"
-    ? "Takeaway"
-    : "Select table";
+    : "Takeaway";
 
   function statusTone(status) {
     if (status === "ready") return "bg-emerald-500/20 border-emerald-500/40 text-emerald-100";

@@ -1884,8 +1884,14 @@ export default function PosPage() {
                         </div>
                       </div>
 
-                      <div className="mt-2 space-y-1 text-[11px] text-white/70">
-                        {itemsPreview.map((it, idx) => (
+                      <div
+                        className={[
+                          "mt-2 space-y-1 text-[11px] text-white/70",
+                          compactMode ? "max-h-16" : "max-h-24",
+                          "overflow-y-auto pr-1",
+                        ].join(" ")}
+                      >
+                        {items.map((it, idx) => (
                           <div key={`${it.id || idx}`} className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <span className="font-semibold text-white/80">{it.quantity}×</span>{" "}
@@ -1898,11 +1904,6 @@ export default function PosPage() {
                             </div>
                           </div>
                         ))}
-                        {items.length > itemsPreview.length ? (
-                          <div className="text-[10px] text-white/45">
-                            +{items.length - itemsPreview.length} more item(s)
-                          </div>
-                        ) : null}
                       </div>
 
                       <div className="mt-2">

@@ -17,11 +17,12 @@ function optionalNumFromString(schema) {
 const numberFromString = numFromString(z.number());
 const positiveNumberFromString = numFromString(z.number().positive());
 const positiveIntFromString = numFromString(z.number().int().positive());
+const boundedGuestFromString = numFromString(z.number().int().min(1).max(20));
 
 const orderItemSchema = z.object({
   menuItemId: z.string().min(1),
   quantity: positiveIntFromString,
-  guest: positiveIntFromString.min(1).max(20),
+  guest: boundedGuestFromString,
   notes: z.string().optional().default(""),
 });
 

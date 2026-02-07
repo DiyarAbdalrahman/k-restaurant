@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "OrderItem" ADD COLUMN     "guest" INTEGER NOT NULL DEFAULT 1;

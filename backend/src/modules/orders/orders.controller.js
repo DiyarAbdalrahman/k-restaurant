@@ -1,6 +1,7 @@
 // src/modules/orders/orders.controller.js
 const { ordersService } = require("./orders.service");
 const { printKitchenTicket, printCustomerReceipt } = require("../../services/printer.service");
+const { normalizeRules, applyPrintRules } = require("../../services/rules.service");
 const prisma = require("../../db/prisma");
 const { emitOrderUpdated } = require("../kitchen/kitchen.gateway");
 
@@ -134,7 +135,17 @@ class OrdersController {
         return res.status(404).json({ message: "Order not found" });
       }
 
-      await printKitchenTicket(order);
+      const settings = await prisma.settings.findFirst();
+      const rules = normalizeRules(settings?.rules);
+      const ctx = {
+        items: order.items || [],
+        orderType: order.type,
+        role: req.user?.role || "pos",
+        tableId: order.table?.id || null,
+        now: new Date(),
+      };
+      const { kitchenOverrides } = applyPrintRules(order, settings, rules, ctx);
+      await printKitchenTicket(order, kitchenOverrides);
       res.json({ message: "Kitchen ticket sent to printer" });
     } catch (err) {
       next(err);
@@ -148,7 +159,17 @@ class OrdersController {
         return res.status(404).json({ message: "Order not found" });
       }
       const settings = await prisma.settings.findFirst();
-      await printCustomerReceipt(order, settings);
+      const rules = normalizeRules(settings?.rules);
+      const ctx = {
+        items: order.items || [],
+        orderType: order.type,
+        role: req.user?.role || "pos",
+        tableId: order.table?.id || null,
+        now: new Date(),
+      };
+      const { receiptOverrides } = applyPrintRules(order, settings, rules, ctx);
+      const mergedSettings = { ...settings, ...receiptOverrides };
+      await printCustomerReceipt(order, mergedSettings);
       res.json({ message: "Receipt sent to printer" });
     } catch (err) {
       next(err);

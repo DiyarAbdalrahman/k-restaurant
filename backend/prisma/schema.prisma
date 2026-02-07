@@ -263,6 +263,7 @@ model Settings {
   securityInactivityLogoutMinutes Int @default(0)
   securityInactivityLockMinutes Int   @default(0)
   securityAllowUserSwitching Boolean  @default(true)
+  rules                     Json?
   updatedAt                 DateTime @updatedAt
   createdAt                 DateTime @default(now())
 }

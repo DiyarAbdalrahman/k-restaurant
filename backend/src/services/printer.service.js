@@ -94,7 +94,7 @@ async function sendToPrinter(renderFn, encoding = "GB18030") {
   });
 }
 
-async function printKitchenTicket(order) {
+async function printKitchenTicket(order, overrides = {}) {
   const isDineIn = order.type === "dine_in";
   const tableName = order.table?.name || "-";
   const takenBy =
@@ -102,6 +102,9 @@ async function printKitchenTicket(order) {
     order.openedByUser?.username ||
     "-";
   const width = 42;
+  const groupByGuest = overrides.groupByGuest !== false;
+  const guestSeparator = overrides.guestSeparator !== false;
+  const itemLabelOverrides = overrides.itemLabelOverrides || {};
 
   return sendToPrinter((printer) => {
     printer
@@ -116,16 +119,33 @@ async function printKitchenTicket(order) {
       .drawLine();
 
     printer.align("LT").text("Items:");
-    const groups = new Map();
-    (order.items || []).forEach((item) => {
-      const guest = Number(item.guest || 1);
-      if (!groups.has(guest)) groups.set(guest, []);
-      groups.get(guest).push(item);
-    });
-    Array.from(groups.keys()).sort((a, b) => a - b).forEach((guest) => {
-      printer.text(`Guest ${guest}`);
-      groups.get(guest).forEach((item) => {
-        const name = item.menuItem?.name || "Item";
+    if (groupByGuest) {
+      const groups = new Map();
+      (order.items || []).forEach((item) => {
+        const guest = Number(item.guest || 1);
+        if (!groups.has(guest)) groups.set(guest, []);
+        groups.get(guest).push(item);
+      });
+      Array.from(groups.keys()).sort((a, b) => a - b).forEach((guest) => {
+        printer.text(`Guest ${guest}`);
+        groups.get(guest).forEach((item) => {
+          const overrideLabel = itemLabelOverrides[item.menuItemId];
+          const name = overrideLabel || item.menuItem?.name || "Item";
+          const qty = item.quantity;
+          const label = `  ${qty} x ${normalizePrintText(name)}`;
+          wrapText(label, width).forEach((line) => printer.text(line));
+          if (item.notes) {
+            wrapText(`   > ${normalizePrintText(item.notes)}`, width).forEach((line) =>
+              printer.text(line)
+            );
+          }
+        });
+        if (guestSeparator) printer.drawLine();
+      });
+    } else {
+      (order.items || []).forEach((item) => {
+        const overrideLabel = itemLabelOverrides[item.menuItemId];
+        const name = overrideLabel || item.menuItem?.name || "Item";
         const qty = item.quantity;
         const label = `  ${qty} x ${normalizePrintText(name)}`;
         wrapText(label, width).forEach((line) => printer.text(line));
@@ -136,7 +156,7 @@ async function printKitchenTicket(order) {
         }
       });
       printer.drawLine();
-    });
+    }
 
     printer.drawLine();
     if (order.notes) {

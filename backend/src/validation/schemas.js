@@ -190,6 +190,7 @@ const settingsUpdateSchema = z.object({
   securityInactivityLogoutMinutes: optionalNumFromString(z.number().int().min(0).max(240)).optional(),
   securityInactivityLockMinutes: optionalNumFromString(z.number().int().min(0).max(240)).optional(),
   securityAllowUserSwitching: z.boolean().optional(),
+  rules: z.any().optional(),
 });
 
 const promotionSchema = z.object({

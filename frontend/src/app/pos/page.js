@@ -119,8 +119,22 @@ export default function PosPage() {
     }, 0);
   }
 
-  const categoryNameById = useMemo(() => {
-    return new Map((menu || []).map((c) => [c.id, c.name]));
+  const menuItemsFlat = useMemo(() => {
+    return (menu || []).flatMap((c) =>
+      (c.items || []).map((it) => ({
+        ...it,
+        categoryId: c.id,
+        categoryName: c.name,
+      }))
+    );
+  }, [menu]);
+
+  const menuItemById = useMemo(() => {
+    return new Map(menuItemsFlat.map((it) => [it.id, it]));
+  }, [menuItemsFlat]);
+
+  const categoryById = useMemo(() => {
+    return new Map((menu || []).map((c) => [c.id, c]));
   }, [menu]);
 
   function isSoupCategoryName(name) {
@@ -132,79 +146,398 @@ export default function PosPage() {
     return false;
   }
 
-  const QUALIFYING_SOUP_FREE_ITEMS = [
+  const DEFAULT_SOUP_FREE_NAMES = [
     "Chicken Qozi",
     "Lamb Kawrma",
     "Lamb Qozi",
     "Mixed Qozi",
-    "Organic Chichekn",
+    "Organic Chicken",
     "Special Qozi",
   ];
 
-  const qualifyingSoupFreeSet = useMemo(() => {
-    return new Set(
-      QUALIFYING_SOUP_FREE_ITEMS.map((n) => String(n || "").trim().toLowerCase())
-    );
+  const normalizeName = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+  const defaultSoupFreeSet = useMemo(() => {
+    return new Set(DEFAULT_SOUP_FREE_NAMES.map((n) => normalizeName(n)));
   }, []);
 
-  function isQualifyingSoupFreeItem(item) {
-    const name = String(item?.name || item?.menuItem?.name || "").trim().toLowerCase();
-    if (!name) return false;
-    return qualifyingSoupFreeSet.has(name);
+  function normalizeRule(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    return {
+      id: raw.id || undefined,
+      name: String(raw.name || "Rule").trim(),
+      enabled: raw.enabled !== false,
+      priority: Number(raw.priority || 100),
+      applyMode: raw.applyMode === "first" ? "first" : "stack",
+      conditions: {
+        match: raw.conditions?.match === "any" ? "any" : "all",
+        items: Array.isArray(raw.conditions?.items) ? raw.conditions.items : [],
+        orderTypes: Array.isArray(raw.conditions?.orderTypes)
+          ? raw.conditions.orderTypes
+          : [],
+        roles: Array.isArray(raw.conditions?.roles) ? raw.conditions.roles : [],
+        days: Array.isArray(raw.conditions?.days)
+          ? raw.conditions.days.map((d) => Number(d)).filter((d) => Number.isFinite(d))
+          : [],
+        time: raw.conditions?.time || null,
+        tables: Array.isArray(raw.conditions?.tables) ? raw.conditions.tables : [],
+      },
+      actions: {
+        freeItems: Array.isArray(raw.actions?.freeItems) ? raw.actions.freeItems : [],
+        discounts: Array.isArray(raw.actions?.discounts) ? raw.actions.discounts : [],
+        addItems: Array.isArray(raw.actions?.addItems) ? raw.actions.addItems : [],
+        print: raw.actions?.print || {},
+      },
+    };
   }
 
-  function isSoupItem(item) {
-    const catName =
-      categoryNameById.get(item.categoryId) ||
-      item.category?.name ||
-      "";
-    return isSoupCategoryName(catName);
+  function normalizeRules(rules) {
+    if (!Array.isArray(rules)) return [];
+    return rules
+      .map(normalizeRule)
+      .filter(Boolean)
+      .sort((a, b) => a.priority - b.priority);
   }
 
-  const soupFreeAllocation = useMemo(() => {
-    const qualifyingCount = cart.reduce((sum, item) => {
-      if (isQualifyingSoupFreeItem(item)) return sum + Number(item.qty || 0);
-      return sum;
-    }, 0);
+  function matchesTimeRange(time, now) {
+    if (!time || !time.start || !time.end) return true;
+    const [sh, sm] = String(time.start).split(":").map((v) => Number(v));
+    const [eh, em] = String(time.end).split(":").map((v) => Number(v));
+    if (!Number.isFinite(sh) || !Number.isFinite(sm) || !Number.isFinite(eh) || !Number.isFinite(em)) {
+      return true;
+    }
+    const start = sh * 60 + sm;
+    const end = eh * 60 + em;
+    const current = now.getHours() * 60 + now.getMinutes();
+    if (start <= end) return current >= start && current <= end;
+    return current >= start || current <= end;
+  }
 
-    let remainingFree = qualifyingCount;
-    const allocation = new Map();
-    cart.forEach((item, idx) => {
-      if (!isSoupItem(item)) return;
-      const qty = Number(item.qty || 0);
-      const freeQty = Math.max(0, Math.min(qty, remainingFree));
-      if (freeQty > 0) {
-        allocation.set(idx, freeQty);
-        remainingFree -= freeQty;
+  function ruleMatches(rule, ctx) {
+    const conditions = rule.conditions || {};
+    const checks = [];
+
+    if (conditions.items?.length) {
+      const itemChecks = conditions.items.map((cond) => {
+        const kind = cond.kind || "item";
+        const minQty = Number(cond.minQty || 1);
+        if (kind === "category") {
+          const qty = ctx.items
+            .filter((x) => x.menuItem?.categoryId === cond.id)
+            .reduce((s, x) => s + Number(x.quantity || 0), 0);
+          return qty >= minQty;
+        }
+        const qty = ctx.items
+          .filter((x) => x.menuItem?.id === cond.id)
+          .reduce((s, x) => s + Number(x.quantity || 0), 0);
+        return qty >= minQty;
+      });
+      if (conditions.match === "any") checks.push(itemChecks.some(Boolean));
+      else checks.push(itemChecks.every(Boolean));
+    }
+
+    if (conditions.orderTypes?.length) checks.push(conditions.orderTypes.includes(ctx.orderType));
+    if (conditions.roles?.length) checks.push(conditions.roles.includes(ctx.role));
+    if (conditions.tables?.length) checks.push(conditions.tables.includes(ctx.tableId || ""));
+    if (conditions.days?.length) checks.push(conditions.days.includes(ctx.now.getDay()));
+    if (conditions.time) checks.push(matchesTimeRange(conditions.time, ctx.now));
+
+    if (checks.length === 0) return true;
+    if (conditions.match === "any") return checks.some(Boolean);
+    return checks.every(Boolean);
+  }
+
+  function matchedQtyForRule(rule, ctx) {
+    const conditions = rule.conditions || {};
+    if (!conditions.items?.length) return 0;
+    return conditions.items.reduce((sum, cond) => {
+      const kind = cond.kind || "item";
+      if (kind === "category") {
+        return (
+          sum +
+          ctx.items
+            .filter((x) => x.menuItem?.categoryId === cond.id)
+            .reduce((s, x) => s + Number(x.quantity || 0), 0)
+        );
       }
+      return (
+        sum +
+        ctx.items
+          .filter((x) => x.menuItem?.id === cond.id)
+          .reduce((s, x) => s + Number(x.quantity || 0), 0)
+      );
+    }, 0);
+  }
+
+  function applyFreeItems(itemsData, itemsWithMenu, action, matchedQty) {
+    let remaining = action.perMatchedItem ? matchedQty : Number(action.freeQty || 0);
+    if (remaining <= 0) return itemsData;
+
+    const updated = itemsData.map((x) => ({ ...x }));
+    const isTarget = (menuItemId) => {
+      if (action.kind === "category") {
+        const found = itemsWithMenu.find((x) => x.item.menuItemId === menuItemId);
+        return found?.menuItem?.categoryId === action.id;
+      }
+      return menuItemId === action.id;
+    };
+
+    for (const item of updated) {
+      if (!isTarget(item.menuItemId)) continue;
+      if (remaining <= 0) break;
+      const qty = Number(item.quantity || 0);
+      if (qty <= 0) continue;
+      const base = Number(item.unitPrice || 0) || 0;
+      const freeQty = Math.min(qty, remaining);
+      remaining -= freeQty;
+      const chargedQty = Math.max(0, qty - freeQty);
+      item.totalPrice = chargedQty * base;
+      if (freeQty >= qty) item.unitPrice = 0;
+    }
+
+    return updated;
+  }
+
+  function computeDiscountForAction(itemsData, itemsWithMenu, action) {
+    const type = action.type === "percent" ? "percent" : "fixed";
+    const amount = Number(action.amount || 0);
+    if (amount <= 0) return 0;
+    let eligibleSubtotal = 0;
+    if (action.scope === "order" || !action.scope) {
+      eligibleSubtotal = itemsData.reduce((s, x) => s + Number(x.totalPrice || 0), 0);
+    } else if (action.scope === "category") {
+      eligibleSubtotal = itemsData.reduce((s, x) => {
+        const found = itemsWithMenu.find((m) => m.item.menuItemId === x.menuItemId);
+        if (found?.menuItem?.categoryId === action.targetId) {
+          return s + Number(x.totalPrice || 0);
+        }
+        return s;
+      }, 0);
+    } else if (action.scope === "item") {
+      eligibleSubtotal = itemsData
+        .filter((x) => x.menuItemId === action.targetId)
+        .reduce((s, x) => s + Number(x.totalPrice || 0), 0);
+    }
+    if (eligibleSubtotal <= 0) return 0;
+    let discount = type === "percent" ? (eligibleSubtotal * amount) / 100 : amount;
+    if (discount > eligibleSubtotal) discount = eligibleSubtotal;
+    return discount;
+  }
+
+  function applyPricingRulesPreview({ itemsWithMenu, itemsData, rules, ctx, menuItemById }) {
+    let workingItems = itemsData.map((x) => ({ ...x }));
+    let ruleDiscount = 0;
+    const displayItems = itemsData.map((x) => ({ ...x, isRuleItem: false }));
+    let addCount = 0;
+
+    for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex += 1) {
+      const rule = rules[ruleIndex];
+      if (!rule.enabled) continue;
+      if (!ruleMatches(rule, ctx)) continue;
+
+      const matchedQty = matchedQtyForRule(rule, ctx);
+
+      for (const action of rule.actions.freeItems || []) {
+        workingItems = applyFreeItems(workingItems, itemsWithMenu, action, matchedQty);
+      }
+
+      for (const action of rule.actions.discounts || []) {
+        ruleDiscount += computeDiscountForAction(workingItems, itemsWithMenu, action);
+      }
+
+      const addItems = rule.actions.addItems || [];
+      for (let actionIndex = 0; actionIndex < addItems.length; actionIndex += 1) {
+        const action = addItems[actionIndex];
+        const qty = Number(action.qty || 0);
+        if (!action.itemId || qty <= 0) continue;
+        const menuItem = menuItemById.get(action.itemId);
+        if (!menuItem) continue;
+        const base = Number(menuItem.basePrice || 0);
+        const unit = action.free ? 0 : base;
+        const total = unit * qty;
+        const lineKey = `rule-${ruleIndex}-${actionIndex}-${addCount++}`;
+        const guest = Number(action.guest || 1);
+
+        workingItems.push({
+          lineKey,
+          menuItemId: menuItem.id,
+          quantity: qty,
+          notes: action.note || "",
+          guest,
+          unitPrice: unit,
+          totalPrice: total,
+        });
+        itemsWithMenu.push({
+          item: { menuItemId: menuItem.id, quantity: qty },
+          menuItem,
+        });
+        displayItems.push({
+          lineKey,
+          id: menuItem.id,
+          name: menuItem.name,
+          basePrice: base,
+          qty,
+          guest,
+          note: action.note || "",
+          categoryId: menuItem.categoryId,
+          isRuleItem: true,
+          autoAdded: true,
+        });
+      }
+
+      if (rule.applyMode === "first") break;
+    }
+
+    return { itemsData: workingItems, ruleDiscount, displayItems };
+  }
+
+  const defaultSoupRules = useMemo(() => {
+    const qualifyingIds = menuItemsFlat
+      .filter((it) => defaultSoupFreeSet.has(normalizeName(it.name)))
+      .map((it) => it.id);
+    const soupCategoryIds = (menu || [])
+      .filter((c) => isSoupCategoryName(c.name))
+      .map((c) => c.id);
+    const soupCategoryId = soupCategoryIds[0];
+    if (qualifyingIds.length === 0 || !soupCategoryId) return [];
+    return [
+      {
+        name: "Default soup free rule",
+        enabled: true,
+        priority: 100,
+        applyMode: "stack",
+        conditions: {
+          match: "any",
+          items: qualifyingIds.map((id) => ({ kind: "item", id, minQty: 1 })),
+        },
+        actions: {
+          freeItems: [
+            {
+              kind: "category",
+              id: soupCategoryId,
+              freeQty: 1,
+              perMatchedItem: true,
+            },
+          ],
+        },
+      },
+    ];
+  }, [menu, menuItemsFlat, defaultSoupFreeSet]);
+
+  const configuredRules = useMemo(() => normalizeRules(settings?.rules), [settings?.rules]);
+  const effectiveRules = configuredRules.length > 0 ? configuredRules : defaultSoupRules;
+
+  const pricingState = useMemo(() => {
+    const itemsData = cart.map((item, idx) => {
+      const qty = Number(item.qty || 0);
+      const base = Number(item.basePrice || 0);
+      return {
+        lineKey: `cart-${idx}`,
+        menuItemId: item.id,
+        quantity: qty,
+        notes: item.note || "",
+        guest: Number(item.guest) || 1,
+        unitPrice: base,
+        totalPrice: base * qty,
+        name: item.name,
+        basePrice: base,
+        qty,
+        categoryId: item.categoryId,
+      };
     });
 
-    return { allocation, qualifyingCount };
-  }, [cart, categoryNameById, qualifyingSoupFreeSet]);
+    const itemsWithMenu = itemsData.map((x) => {
+      const menuItem = menuItemById.get(x.menuItemId);
+      if (menuItem) return { item: { menuItemId: x.menuItemId, quantity: x.quantity }, menuItem };
+      const category = categoryById.get(x.categoryId);
+      return {
+        item: { menuItemId: x.menuItemId, quantity: x.quantity },
+        menuItem: {
+          id: x.menuItemId,
+          name: x.name,
+          basePrice: x.basePrice,
+          categoryId: x.categoryId,
+          category,
+        },
+      };
+    });
 
-  const cartTotals = useMemo(() => {
+    const ctx = {
+      items: itemsWithMenu.map((x) => ({ ...x.item, menuItem: x.menuItem })),
+      orderType: getOrderType(),
+      role: user?.role || "pos",
+      tableId: selectedTableId || null,
+      now: new Date(),
+    };
+
+    const pricing = applyPricingRulesPreview({
+      itemsWithMenu,
+      itemsData,
+      rules: effectiveRules,
+      ctx,
+      menuItemById,
+    });
+
+    const lineByKey = new Map(
+      pricing.itemsData.map((line) => [line.lineKey, line])
+    );
+
     const safeDiscount = Number(discountValue) || 0;
     const safeService = Number(serviceChargePercent) || 0;
     const safeTax = Number(taxPercent) || 0;
 
-    const subtotal = cart.reduce((sum, item, idx) => {
-      const base = Number(item.basePrice || 0);
-      const freeQty = soupFreeAllocation.allocation.get(idx) || 0;
-      const qty = Number(item.qty || 0);
-      const chargedQty = Math.max(0, qty - freeQty);
-      return sum + chargedQty * base;
-    }, 0);
+    const subtotal = pricing.itemsData.reduce(
+      (sum, line) => sum + Number(line.totalPrice || 0),
+      0
+    );
 
-    let discountAmount = 0;
-    if (discountType === "percent") discountAmount = (subtotal * safeDiscount) / 100;
-    else if (discountType === "fixed") discountAmount = safeDiscount;
+    let manualDiscount = 0;
+    if (discountType === "percent") manualDiscount = (subtotal * safeDiscount) / 100;
+    else if (discountType === "fixed") manualDiscount = safeDiscount;
+
+    let discountAmount = manualDiscount + Number(pricing.ruleDiscount || 0);
+    if (discountAmount > subtotal) discountAmount = subtotal;
 
     const serviceCharge = (subtotal - discountAmount) * (safeService / 100);
     const taxAmount = (subtotal - discountAmount + serviceCharge) * (safeTax / 100);
     const total = subtotal - discountAmount + serviceCharge + taxAmount;
 
-    return { subtotal, discountAmount, serviceCharge, taxAmount, total };
-  }, [cart, discountType, discountValue, serviceChargePercent, taxPercent, soupFreeAllocation]);
+    return {
+      displayCart: pricing.displayItems,
+      lineByKey,
+      totals: {
+        subtotal,
+        manualDiscount,
+        ruleDiscount: Number(pricing.ruleDiscount || 0),
+        discountAmount,
+        serviceCharge,
+        taxAmount,
+        total,
+      },
+    };
+  }, [
+    cart,
+    menu,
+    menuItemsFlat,
+    menuItemById,
+    categoryById,
+    effectiveRules,
+    user?.role,
+    selectedTableId,
+    discountType,
+    discountValue,
+    serviceChargePercent,
+    taxPercent,
+    defaultOrderType,
+  ]);
+
+  const cartTotals = pricingState.totals;
+  const displayCart = pricingState.displayCart;
+  const lineByKey = pricingState.lineByKey;
 
   // Checkout totals:
   // - If selectedOrder exists: show server totals and payments (REAL POS flow)
@@ -690,7 +1023,7 @@ export default function PosPage() {
         tableId: selectedTableId,
         notes: "",
         subtotal: Number(cartTotals.subtotal.toFixed(2)),
-        discountAmount: Number(cartTotals.discountAmount.toFixed(2)),
+        discountAmount: Number(cartTotals.manualDiscount.toFixed(2)),
         taxAmount: Number(cartTotals.taxAmount.toFixed(2)),
         serviceCharge: Number(cartTotals.serviceCharge.toFixed(2)),
         total: Number(cartTotals.total.toFixed(2)),
@@ -2312,17 +2645,16 @@ export default function PosPage() {
                         </div>
                       </div>
                     )}
-                    {cart.map((item, index) => {
+                    {displayCart.map((item, index) => {
                       const base = Number(item.basePrice || 0);
                       const qty = Number(item.qty || 0);
-                      const freeQty = soupFreeAllocation.allocation.get(index) || 0;
-                      const chargedQty = Math.max(0, qty - freeQty);
-                      const lineTotal = chargedQty * base;
-                      const unitDisplay = freeQty >= qty ? 0 : base;
+                      const lineInfo = lineByKey?.get(item.lineKey);
+                      const unitDisplay = lineInfo ? Number(lineInfo.unitPrice || 0) : base;
+                      const lineTotal = lineInfo ? Number(lineInfo.totalPrice || 0) : base * qty;
 
                       return (
                         <div
-                          key={index}
+                          key={item.lineKey || index}
                           className={[
                             "rounded-2xl border border-white/10 bg-black/20",
                             compactMode ? "p-2.5" : "p-3",
@@ -2330,7 +2662,14 @@ export default function PosPage() {
                         >
                           <div className="flex justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="font-semibold text-sm truncate">{item.name}</div>
+                              <div className="font-semibold text-sm truncate">
+                                {item.name}
+                                {item.isRuleItem ? (
+                                  <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-white/10 border border-white/10">
+                                    Auto
+                                  </span>
+                                ) : null}
+                              </div>
                               <div className="text-xs text-white/60">
                                 Guest {Number(item.guest || 1)}
                               </div>
@@ -2342,24 +2681,28 @@ export default function PosPage() {
                               </div>
                             </div>
 
-                            <button
-                              onClick={async () => {
-                                const ok = await askConfirm({
-                                  title: "Remove item",
-                                  body: "Remove this item from the cart?",
-                                  confirmText: "Remove",
-                                });
-                                if (!ok) return;
-                                setCart((prev) => prev.filter((_, i) => i !== index));
-                              }}
-                              className={[
-                                "text-xs rounded-xl bg-red-600/20 border border-red-600/30 hover:bg-red-600/30 active:scale-[0.98] transition",
-                                compactMode ? "px-2.5 py-1.5" : "px-3 py-2",
-                              ].join(" ")}
-                              type="button"
-                            >
-                              Remove
-                            </button>
+                            {!item.isRuleItem ? (
+                              <button
+                                onClick={async () => {
+                                  const ok = await askConfirm({
+                                    title: "Remove item",
+                                    body: "Remove this item from the cart?",
+                                    confirmText: "Remove",
+                                  });
+                                  if (!ok) return;
+                                  setCart((prev) => prev.filter((_, i) => i !== index));
+                                }}
+                                className={[
+                                  "text-xs rounded-xl bg-red-600/20 border border-red-600/30 hover:bg-red-600/30 active:scale-[0.98] transition",
+                                  compactMode ? "px-2.5 py-1.5" : "px-3 py-2",
+                                ].join(" ")}
+                                type="button"
+                              >
+                                Remove
+                              </button>
+                            ) : (
+                              <div className="text-[10px] text-white/50 self-start">Auto-added</div>
+                            )}
                           </div>
 
                           <div className="mt-3">
@@ -2378,6 +2721,7 @@ export default function PosPage() {
                                   )
                                 )
                               }
+                              disabled={item.isRuleItem}
                               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none"
                             >
                               {Array.from({ length: maxGuests }, (_, i) => i + 1).map((g) => (
@@ -2390,7 +2734,7 @@ export default function PosPage() {
 
                           <input
                             type="text"
-                            value={item.note}
+                            value={item.note || ""}
                             onChange={(e) =>
                               setCart((prev) =>
                                 prev.map((c, i) =>
@@ -2399,6 +2743,7 @@ export default function PosPage() {
                               )
                             }
                             placeholder="Notes (e.g., no onion)"
+                            disabled={item.isRuleItem}
                             className="mt-3 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none focus:border-red-500/60"
                           />
                         </div>

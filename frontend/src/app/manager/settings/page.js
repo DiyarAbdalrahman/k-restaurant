@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { getUser, clearAuth } from "@/lib/auth";
 import { useSettings } from "@/lib/settings";
@@ -11,6 +11,8 @@ const ROLE_ALLOWED = new Set(["admin", "manager"]);
 export default function ManagerSettingsPage() {
   const { settings, refresh } = useSettings();
   const [user, setUser] = useState(null);
+  const [menuData, setMenuData] = useState([]);
+  const [tablesData, setTablesData] = useState([]);
 
   const inputBase =
     "w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm outline-none focus:border-red-500/60 focus:ring-1 focus:ring-red-500/30 transition";
@@ -88,6 +90,7 @@ export default function ManagerSettingsPage() {
     securityInactivityLogoutMinutes: 0,
     securityInactivityLockMinutes: 0,
     securityAllowUserSwitching: true,
+    rules: [],
   });
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -109,6 +112,25 @@ export default function ManagerSettingsPage() {
     if (!settings) return;
     setForm((prev) => ({ ...prev, ...settings }));
   }, [settings]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadOptions() {
+      try {
+        const [menuRes, tablesRes] = await Promise.all([
+          api.get("/menu"),
+          api.get("/tables"),
+        ]);
+        if (!active) return;
+        setMenuData(menuRes.data || []);
+        setTablesData(tablesRes.data || []);
+      } catch {}
+    }
+    loadOptions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function save() {
     try {
@@ -150,12 +172,82 @@ export default function ManagerSettingsPage() {
     }
   }
 
+  const menuCategories = useMemo(() => {
+    return (menuData || []).map((c) => ({ id: c.id, name: c.name }));
+  }, [menuData]);
+
+  const menuItems = useMemo(() => {
+    const items = [];
+    (menuData || []).forEach((c) => {
+      (c.items || []).forEach((it) => {
+        items.push({ id: it.id, name: it.name, categoryId: c.id });
+      });
+    });
+    return items;
+  }, [menuData]);
+
+  const roleOptions = ["pos", "kitchen", "manager", "admin", "waiter"];
+  const dayOptions = [
+    { value: 0, label: "Sun" },
+    { value: 1, label: "Mon" },
+    { value: 2, label: "Tue" },
+    { value: 3, label: "Wed" },
+    { value: 4, label: "Thu" },
+    { value: 5, label: "Fri" },
+    { value: 6, label: "Sat" },
+  ];
+
+  function updateRule(index, patch) {
+    setForm((prev) => {
+      const rules = Array.isArray(prev.rules) ? [...prev.rules] : [];
+      rules[index] = { ...rules[index], ...patch };
+      return { ...prev, rules };
+    });
+  }
+
+  function addRule() {
+    const base = {
+      id: `rule-${Date.now()}`,
+      name: "New Rule",
+      enabled: true,
+      priority: 100,
+      applyMode: "stack",
+      conditions: {
+        match: "all",
+        items: [],
+        orderTypes: [],
+        roles: [],
+        days: [],
+        time: { start: "10:00", end: "22:00" },
+        tables: [],
+      },
+      actions: {
+        freeItems: [],
+        discounts: [],
+        addItems: [],
+        print: {
+          receipt: {},
+          kitchen: { groupByGuest: true, guestSeparator: true, itemLabelOverrides: [] },
+        },
+      },
+    };
+    setForm((prev) => ({ ...prev, rules: [...(prev.rules || []), base] }));
+  }
+
+  function removeRule(index) {
+    setForm((prev) => ({
+      ...prev,
+      rules: (prev.rules || []).filter((_, i) => i !== index),
+    }));
+  }
+
   function logout() {
     clearAuth();
     window.location.href = "/login";
   }
 
   if (!user) return null;
+  const rules = Array.isArray(form.rules) ? form.rules : [];
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -876,6 +968,812 @@ export default function ManagerSettingsPage() {
                       className={toggleInput}
                     />
                   </label>
+                </div>
+              </div>
+
+              <div className={sectionCard}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className={sectionTitle}>Rules</div>
+                    <div className={sectionHint}>
+                      Create flexible pricing and printing rules.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addRule}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
+                  >
+                    Add Rule
+                  </button>
+                </div>
+
+                {rules.length === 0 ? (
+                  <div className="mt-4 text-xs text-white/60">
+                    No rules yet. Click “Add Rule” to create one.
+                  </div>
+                ) : null}
+
+                <div className="mt-4 space-y-4">
+                  {rules.map((rule, ruleIndex) => (
+                    <div
+                      key={rule.id || ruleIndex}
+                      className="rounded-2xl border border-white/10 bg-black/30 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className={`${labelText} flex-1 min-w-[180px]`}>
+                          Rule name
+                          <input
+                            value={rule.name || ""}
+                            onChange={(e) => updateRule(ruleIndex, { name: e.target.value })}
+                            className={`${inputBase} mt-1`}
+                          />
+                        </label>
+                        <label className={`${labelText} w-28`}>
+                          Priority
+                          <input
+                            type="number"
+                            value={Number(rule.priority || 100)}
+                            onChange={(e) =>
+                              updateRule(ruleIndex, { priority: Number(e.target.value) })
+                            }
+                            className={`${inputSmall} mt-1 w-full`}
+                          />
+                        </label>
+                        <label className={`${labelText} w-36`}>
+                          Apply mode
+                          <select
+                            value={rule.applyMode || "stack"}
+                            onChange={(e) => updateRule(ruleIndex, { applyMode: e.target.value })}
+                            className={`${inputSmall} mt-1 w-full`}
+                          >
+                            <option value="stack">Stack</option>
+                            <option value="first">First match</option>
+                          </select>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-white/70">
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled !== false}
+                            onChange={(e) => updateRule(ruleIndex, { enabled: e.target.checked })}
+                            className={toggleInput}
+                          />
+                          Enabled
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeRule(ruleIndex)}
+                          className="ml-auto px-2.5 py-2 rounded-xl text-xs font-semibold bg-red-600/30 border border-red-600/40 hover:bg-red-600/40"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-xs text-white/60 uppercase">Conditions</div>
+                          <div className="mt-2">
+                            <label className={labelText}>
+                              Match
+                              <select
+                                value={rule.conditions?.match || "all"}
+                                onChange={(e) =>
+                                  updateRule(ruleIndex, {
+                                    conditions: { ...rule.conditions, match: e.target.value },
+                                  })
+                                }
+                                className={`${inputSmall} mt-1 w-full`}
+                              >
+                                <option value="all">All</option>
+                                <option value="any">Any</option>
+                              </select>
+                            </label>
+                          </div>
+
+                          <div className="mt-3">
+                            <div className="text-xs text-white/60">Items / Categories</div>
+                            {(rule.conditions?.items || []).map((cond, condIndex) => (
+                              <div key={condIndex} className="mt-2 grid grid-cols-12 gap-2">
+                                <select
+                                  value={cond.kind || "item"}
+                                  onChange={(e) => {
+                                    const next = [...(rule.conditions?.items || [])];
+                                    next[condIndex] = { ...next[condIndex], kind: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      conditions: { ...rule.conditions, items: next },
+                                    });
+                                  }}
+                                  className="col-span-3 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="item">Item</option>
+                                  <option value="category">Category</option>
+                                </select>
+                                <select
+                                  value={cond.id || ""}
+                                  onChange={(e) => {
+                                    const next = [...(rule.conditions?.items || [])];
+                                    next[condIndex] = { ...next[condIndex], id: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      conditions: { ...rule.conditions, items: next },
+                                    });
+                                  }}
+                                  className="col-span-6 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="">Select</option>
+                                  {(cond.kind === "category" ? menuCategories : menuItems).map(
+                                    (opt) => (
+                                      <option key={opt.id} value={opt.id}>
+                                        {opt.name}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                                <input
+                                  type="number"
+                                  placeholder="Qty"
+                                  value={Number(cond.minQty || 1)}
+                                  onChange={(e) => {
+                                    const next = [...(rule.conditions?.items || [])];
+                                    next[condIndex] = {
+                                      ...next[condIndex],
+                                      minQty: Number(e.target.value),
+                                    };
+                                    updateRule(ruleIndex, {
+                                      conditions: { ...rule.conditions, items: next },
+                                    });
+                                  }}
+                                  className="col-span-2 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (rule.conditions?.items || []).filter(
+                                      (_, i) => i !== condIndex
+                                    );
+                                    updateRule(ruleIndex, {
+                                      conditions: { ...rule.conditions, items: next },
+                                    });
+                                  }}
+                                  className="col-span-1 text-xs text-red-200"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...(rule.conditions?.items || [])];
+                                next.push({ kind: "item", id: "", minQty: 1 });
+                                updateRule(ruleIndex, {
+                                  conditions: { ...rule.conditions, items: next },
+                                });
+                              }}
+                              className="mt-2 text-xs text-white/70 hover:text-white"
+                            >
+                              + Add item condition
+                            </button>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <label className={labelText}>
+                              Order types
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {["dine_in", "takeaway"].map((t) => (
+                                  <label key={t} className="text-xs text-white/70 flex items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={(rule.conditions?.orderTypes || []).includes(t)}
+                                      onChange={(e) => {
+                                        const next = new Set(rule.conditions?.orderTypes || []);
+                                        if (e.target.checked) next.add(t);
+                                        else next.delete(t);
+                                        updateRule(ruleIndex, {
+                                          conditions: {
+                                            ...rule.conditions,
+                                            orderTypes: Array.from(next),
+                                          },
+                                        });
+                                      }}
+                                      className={toggleInput}
+                                    />
+                                    {t}
+                                  </label>
+                                ))}
+                              </div>
+                            </label>
+                            <label className={labelText}>
+                              Roles
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {roleOptions.map((r) => (
+                                  <label key={r} className="text-xs text-white/70 flex items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={(rule.conditions?.roles || []).includes(r)}
+                                      onChange={(e) => {
+                                        const next = new Set(rule.conditions?.roles || []);
+                                        if (e.target.checked) next.add(r);
+                                        else next.delete(r);
+                                        updateRule(ruleIndex, {
+                                          conditions: {
+                                            ...rule.conditions,
+                                            roles: Array.from(next),
+                                          },
+                                        });
+                                      }}
+                                      className={toggleInput}
+                                    />
+                                    {r}
+                                  </label>
+                                ))}
+                              </div>
+                            </label>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <label className={labelText}>
+                              Days
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {dayOptions.map((d) => (
+                                  <label key={d.value} className="text-xs text-white/70 flex items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={(rule.conditions?.days || []).includes(d.value)}
+                                      onChange={(e) => {
+                                        const next = new Set(rule.conditions?.days || []);
+                                        if (e.target.checked) next.add(d.value);
+                                        else next.delete(d.value);
+                                        updateRule(ruleIndex, {
+                                          conditions: {
+                                            ...rule.conditions,
+                                            days: Array.from(next),
+                                          },
+                                        });
+                                      }}
+                                      className={toggleInput}
+                                    />
+                                    {d.label}
+                                  </label>
+                                ))}
+                              </div>
+                            </label>
+                            <label className={labelText}>
+                              Time range
+                              <div className="mt-1 flex items-center gap-2">
+                                <input
+                                  type="time"
+                                  value={rule.conditions?.time?.start || "10:00"}
+                                  onChange={(e) =>
+                                    updateRule(ruleIndex, {
+                                      conditions: {
+                                        ...rule.conditions,
+                                        time: { ...rule.conditions?.time, start: e.target.value },
+                                      },
+                                    })
+                                  }
+                                  className={inputSmall}
+                                />
+                                <span className="text-xs text-white/50">to</span>
+                                <input
+                                  type="time"
+                                  value={rule.conditions?.time?.end || "22:00"}
+                                  onChange={(e) =>
+                                    updateRule(ruleIndex, {
+                                      conditions: {
+                                        ...rule.conditions,
+                                        time: { ...rule.conditions?.time, end: e.target.value },
+                                      },
+                                    })
+                                  }
+                                  className={inputSmall}
+                                />
+                              </div>
+                            </label>
+                          </div>
+
+                          <div className="mt-3">
+                            <div className="text-xs text-white/60">Tables</div>
+                            <div className="mt-1 flex flex-wrap gap-2">
+                              {(tablesData || []).map((t) => (
+                                <label key={t.id} className="text-xs text-white/70 flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={(rule.conditions?.tables || []).includes(t.id)}
+                                    onChange={(e) => {
+                                      const next = new Set(rule.conditions?.tables || []);
+                                      if (e.target.checked) next.add(t.id);
+                                      else next.delete(t.id);
+                                      updateRule(ruleIndex, {
+                                        conditions: {
+                                          ...rule.conditions,
+                                          tables: Array.from(next),
+                                        },
+                                      });
+                                    }}
+                                    className={toggleInput}
+                                  />
+                                  {t.name}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-xs text-white/60 uppercase">Actions</div>
+
+                          <div className="mt-2">
+                            <div className="text-xs text-white/60">Free items</div>
+                            {(rule.actions?.freeItems || []).map((act, actIndex) => (
+                              <div key={actIndex} className="mt-2 grid grid-cols-12 gap-2">
+                                <select
+                                  value={act.kind || "item"}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.freeItems || [])];
+                                    next[actIndex] = { ...next[actIndex], kind: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, freeItems: next },
+                                    });
+                                  }}
+                                  className="col-span-3 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="item">Item</option>
+                                  <option value="category">Category</option>
+                                </select>
+                                <select
+                                  value={act.id || ""}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.freeItems || [])];
+                                    next[actIndex] = { ...next[actIndex], id: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, freeItems: next },
+                                    });
+                                  }}
+                                  className="col-span-5 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="">Select</option>
+                                  {(act.kind === "category" ? menuCategories : menuItems).map(
+                                    (opt) => (
+                                      <option key={opt.id} value={opt.id}>
+                                        {opt.name}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                                <input
+                                  type="number"
+                                  placeholder="Free qty"
+                                  value={Number(act.freeQty || 1)}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.freeItems || [])];
+                                    next[actIndex] = {
+                                      ...next[actIndex],
+                                      freeQty: Number(e.target.value),
+                                    };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, freeItems: next },
+                                    });
+                                  }}
+                                  className="col-span-2 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                />
+                                <label className="col-span-1 text-[10px] text-white/60 flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={act.perMatchedItem === true}
+                                    onChange={(e) => {
+                                      const next = [...(rule.actions?.freeItems || [])];
+                                      next[actIndex] = {
+                                        ...next[actIndex],
+                                        perMatchedItem: e.target.checked,
+                                      };
+                                      updateRule(ruleIndex, {
+                                        actions: { ...rule.actions, freeItems: next },
+                                      });
+                                    }}
+                                    className={toggleInput}
+                                  />
+                                  per matched
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (rule.actions?.freeItems || []).filter(
+                                      (_, i) => i !== actIndex
+                                    );
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, freeItems: next },
+                                    });
+                                  }}
+                                  className="col-span-1 text-xs text-red-200"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...(rule.actions?.freeItems || [])];
+                                next.push({ kind: "item", id: "", freeQty: 1, perMatchedItem: false });
+                                updateRule(ruleIndex, {
+                                  actions: { ...rule.actions, freeItems: next },
+                                });
+                              }}
+                              className="mt-2 text-xs text-white/70 hover:text-white"
+                            >
+                              + Add free item rule
+                            </button>
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="text-xs text-white/60">Discounts</div>
+                            {(rule.actions?.discounts || []).map((act, actIndex) => (
+                              <div key={actIndex} className="mt-2 grid grid-cols-12 gap-2">
+                                <select
+                                  value={act.type || "percent"}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.discounts || [])];
+                                    next[actIndex] = { ...next[actIndex], type: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, discounts: next },
+                                    });
+                                  }}
+                                  className="col-span-3 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="percent">Percent</option>
+                                  <option value="fixed">Fixed</option>
+                                </select>
+                                <input
+                                  type="number"
+                                  placeholder="Amount"
+                                  value={Number(act.amount || 0)}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.discounts || [])];
+                                    next[actIndex] = {
+                                      ...next[actIndex],
+                                      amount: Number(e.target.value),
+                                    };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, discounts: next },
+                                    });
+                                  }}
+                                  className="col-span-3 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                />
+                                <select
+                                  value={act.scope || "order"}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.discounts || [])];
+                                    next[actIndex] = { ...next[actIndex], scope: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, discounts: next },
+                                    });
+                                  }}
+                                  className="col-span-3 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="order">Order</option>
+                                  <option value="category">Category</option>
+                                  <option value="item">Item</option>
+                                </select>
+                                <select
+                                  value={act.targetId || ""}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.discounts || [])];
+                                    next[actIndex] = { ...next[actIndex], targetId: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, discounts: next },
+                                    });
+                                  }}
+                                  className="col-span-2 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="">Target</option>
+                                  {(act.scope === "category" ? menuCategories : menuItems).map(
+                                    (opt) => (
+                                      <option key={opt.id} value={opt.id}>
+                                        {opt.name}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (rule.actions?.discounts || []).filter(
+                                      (_, i) => i !== actIndex
+                                    );
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, discounts: next },
+                                    });
+                                  }}
+                                  className="col-span-1 text-xs text-red-200"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...(rule.actions?.discounts || [])];
+                                next.push({ type: "percent", amount: 10, scope: "order", targetId: "" });
+                                updateRule(ruleIndex, {
+                                  actions: { ...rule.actions, discounts: next },
+                                });
+                              }}
+                              className="mt-2 text-xs text-white/70 hover:text-white"
+                            >
+                              + Add discount rule
+                            </button>
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="text-xs text-white/60">Auto add items</div>
+                            {(rule.actions?.addItems || []).map((act, actIndex) => (
+                              <div key={actIndex} className="mt-2 grid grid-cols-12 gap-2">
+                                <select
+                                  value={act.itemId || ""}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.addItems || [])];
+                                    next[actIndex] = { ...next[actIndex], itemId: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, addItems: next },
+                                    });
+                                  }}
+                                  className="col-span-5 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                >
+                                  <option value="">Select item</option>
+                                  {menuItems.map((opt) => (
+                                    <option key={opt.id} value={opt.id}>
+                                      {opt.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="number"
+                                  placeholder="Qty"
+                                  value={Number(act.qty || 1)}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.addItems || [])];
+                                    next[actIndex] = { ...next[actIndex], qty: Number(e.target.value) };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, addItems: next },
+                                    });
+                                  }}
+                                  className="col-span-2 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Guest"
+                                  value={Number(act.guest || 1)}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.addItems || [])];
+                                    next[actIndex] = { ...next[actIndex], guest: Number(e.target.value) };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, addItems: next },
+                                    });
+                                  }}
+                                  className="col-span-2 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                />
+                                <label className="col-span-2 text-[10px] text-white/60 flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={act.free === true}
+                                    onChange={(e) => {
+                                      const next = [...(rule.actions?.addItems || [])];
+                                      next[actIndex] = { ...next[actIndex], free: e.target.checked };
+                                      updateRule(ruleIndex, {
+                                        actions: { ...rule.actions, addItems: next },
+                                      });
+                                    }}
+                                    className={toggleInput}
+                                  />
+                                  free
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="Note"
+                                  value={act.note || ""}
+                                  onChange={(e) => {
+                                    const next = [...(rule.actions?.addItems || [])];
+                                    next[actIndex] = { ...next[actIndex], note: e.target.value };
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, addItems: next },
+                                    });
+                                  }}
+                                  className="col-span-12 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (rule.actions?.addItems || []).filter(
+                                      (_, i) => i !== actIndex
+                                    );
+                                    updateRule(ruleIndex, {
+                                      actions: { ...rule.actions, addItems: next },
+                                    });
+                                  }}
+                                  className="col-span-1 text-xs text-red-200"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...(rule.actions?.addItems || [])];
+                                next.push({ itemId: "", qty: 1, guest: 1, free: false, note: "" });
+                                updateRule(ruleIndex, {
+                                  actions: { ...rule.actions, addItems: next },
+                                });
+                              }}
+                              className="mt-2 text-xs text-white/70 hover:text-white"
+                            >
+                              + Add auto item
+                            </button>
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="text-xs text-white/60">Kitchen print</div>
+                            <div className="mt-2 flex flex-wrap gap-3">
+                              <label className="text-xs text-white/70 flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={rule.actions?.print?.kitchen?.groupByGuest !== false}
+                                  onChange={(e) =>
+                                    updateRule(ruleIndex, {
+                                      actions: {
+                                        ...rule.actions,
+                                        print: {
+                                          ...rule.actions?.print,
+                                          kitchen: {
+                                            ...rule.actions?.print?.kitchen,
+                                            groupByGuest: e.target.checked,
+                                          },
+                                        },
+                                      },
+                                    })
+                                  }
+                                  className={toggleInput}
+                                />
+                                Group by guest
+                              </label>
+                              <label className="text-xs text-white/70 flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={rule.actions?.print?.kitchen?.guestSeparator !== false}
+                                  onChange={(e) =>
+                                    updateRule(ruleIndex, {
+                                      actions: {
+                                        ...rule.actions,
+                                        print: {
+                                          ...rule.actions?.print,
+                                          kitchen: {
+                                            ...rule.actions?.print?.kitchen,
+                                            guestSeparator: e.target.checked,
+                                          },
+                                        },
+                                      },
+                                    })
+                                  }
+                                  className={toggleInput}
+                                />
+                                Guest separator line
+                              </label>
+                            </div>
+                            <div className="mt-2">
+                              <div className="text-xs text-white/60">Item label overrides</div>
+                              {(rule.actions?.print?.kitchen?.itemLabelOverrides || []).map(
+                                (ovr, ovrIndex) => (
+                                  <div key={ovrIndex} className="mt-2 grid grid-cols-12 gap-2">
+                                    <select
+                                      value={ovr.itemId || ""}
+                                      onChange={(e) => {
+                                        const next = [
+                                          ...(rule.actions?.print?.kitchen?.itemLabelOverrides || []),
+                                        ];
+                                        next[ovrIndex] = { ...next[ovrIndex], itemId: e.target.value };
+                                        updateRule(ruleIndex, {
+                                          actions: {
+                                            ...rule.actions,
+                                            print: {
+                                              ...rule.actions?.print,
+                                              kitchen: {
+                                                ...rule.actions?.print?.kitchen,
+                                                itemLabelOverrides: next,
+                                              },
+                                            },
+                                          },
+                                        });
+                                      }}
+                                      className="col-span-5 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                    >
+                                      <option value="">Select item</option>
+                                      {menuItems.map((opt) => (
+                                        <option key={opt.id} value={opt.id}>
+                                          {opt.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <input
+                                      type="text"
+                                      placeholder="Label"
+                                      value={ovr.label || ""}
+                                      onChange={(e) => {
+                                        const next = [
+                                          ...(rule.actions?.print?.kitchen?.itemLabelOverrides || []),
+                                        ];
+                                        next[ovrIndex] = { ...next[ovrIndex], label: e.target.value };
+                                        updateRule(ruleIndex, {
+                                          actions: {
+                                            ...rule.actions,
+                                            print: {
+                                              ...rule.actions?.print,
+                                              kitchen: {
+                                                ...rule.actions?.print?.kitchen,
+                                                itemLabelOverrides: next,
+                                              },
+                                            },
+                                          },
+                                        });
+                                      }}
+                                      className="col-span-6 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = (
+                                          rule.actions?.print?.kitchen?.itemLabelOverrides || []
+                                        ).filter((_, i) => i !== ovrIndex);
+                                        updateRule(ruleIndex, {
+                                          actions: {
+                                            ...rule.actions,
+                                            print: {
+                                              ...rule.actions?.print,
+                                              kitchen: {
+                                                ...rule.actions?.print?.kitchen,
+                                                itemLabelOverrides: next,
+                                              },
+                                            },
+                                          },
+                                        });
+                                      }}
+                                      className="col-span-1 text-xs text-red-200"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                )
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = [
+                                    ...(rule.actions?.print?.kitchen?.itemLabelOverrides || []),
+                                  ];
+                                  next.push({ itemId: "", label: "" });
+                                  updateRule(ruleIndex, {
+                                    actions: {
+                                      ...rule.actions,
+                                      print: {
+                                        ...rule.actions?.print,
+                                        kitchen: {
+                                          ...rule.actions?.print?.kitchen,
+                                          itemLabelOverrides: next,
+                                        },
+                                      },
+                                    },
+                                  });
+                                }}
+                                className="mt-2 text-xs text-white/70 hover:text-white"
+                              >
+                                + Add label override
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 

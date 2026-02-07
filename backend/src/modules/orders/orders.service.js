@@ -1,6 +1,11 @@
 // src/modules/orders/orders.service.js
 const prisma = require("../../db/prisma");
 const { printKitchenTicket } = require("../../services/printer.service");
+const {
+  normalizeRules,
+  applyPricingRules,
+  applyPrintRules,
+} = require("../../services/rules.service");
 
 class OrdersService {
   // LIST OPEN ORDERS
@@ -52,6 +57,10 @@ class OrdersService {
   // CREATE ORDER
   async createOrder(params) {
     const settings = await prisma.settings.findFirst();
+    const user = await prisma.user.findUnique({
+      where: { id: params.openedByUserId },
+      select: { role: true },
+    });
     const itemsWithMenu = await Promise.all(
       params.items.map(async (item) => {
         const menuItem = await prisma.menuItem.findUnique({
@@ -76,44 +85,32 @@ class OrdersService {
       return false;
     };
 
-    const QUALIFYING_SOUP_FREE_ITEMS = [
+    const isSoup = (menuItem) => isSoupCategoryName(menuItem?.category?.name);
+
+    const DEFAULT_SOUP_FREE_NAMES = [
       "Chicken Qozi",
       "Lamb Kawrma",
       "Lamb Qozi",
       "Mixed Qozi",
-      "Organic Chichekn",
+      "Organic Chicken",
       "Special Qozi",
     ];
 
-    const qualifyingSet = new Set(
-      QUALIFYING_SOUP_FREE_ITEMS.map((n) => String(n || "").trim().toLowerCase())
+    const normalizeName = (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+    const defaultSoupFreeSet = new Set(
+      DEFAULT_SOUP_FREE_NAMES.map((n) => normalizeName(n))
     );
 
-    const isSoup = (menuItem) => isSoupCategoryName(menuItem?.category?.name);
-    const isQualifyingItem = (menuItem) =>
-      qualifyingSet.has(String(menuItem?.name || "").trim().toLowerCase());
-
-    let qualifyingCount = 0;
-    for (const { item, menuItem } of itemsWithMenu) {
-      if (isQualifyingItem(menuItem)) {
-        qualifyingCount += Number(item.quantity || 0);
-      }
-    }
-
-    let remainingFreeSoups = Math.max(0, qualifyingCount);
-
-    const itemsData = itemsWithMenu.map(({ item, menuItem }) => {
+    let itemsData = itemsWithMenu.map(({ item, menuItem }) => {
       const qty = Number(item.quantity || 0);
       const base = Number(menuItem.basePrice || 0);
       let unitPrice = base;
       let totalPrice = base * qty;
-
-      if (isSoup(menuItem) && qty > 0 && remainingFreeSoups > 0) {
-        const freeQty = Math.min(qty, remainingFreeSoups);
-        remainingFreeSoups -= freeQty;
-        totalPrice = base * Math.max(0, qty - freeQty);
-        if (freeQty >= qty) unitPrice = 0;
-      }
 
       return {
         menuItemId: item.menuItemId,
@@ -124,6 +121,66 @@ class OrdersService {
         totalPrice,
       };
     });
+
+    let rules = normalizeRules(settings?.rules);
+    if (rules.length === 0) {
+      const qualifyingItemIds = itemsWithMenu
+        .filter(({ menuItem }) => defaultSoupFreeSet.has(normalizeName(menuItem?.name)))
+        .map(({ menuItem }) => menuItem.id);
+      const soupCategoryIds = Array.from(
+        new Set(
+          itemsWithMenu
+            .filter(({ menuItem }) => isSoup(menuItem))
+            .map(({ menuItem }) => menuItem.categoryId)
+            .filter(Boolean)
+        )
+      );
+
+      const soupCategoryId = soupCategoryIds[0];
+      if (qualifyingItemIds.length > 0 && soupCategoryId) {
+        rules = [
+          {
+            name: "Default soup free rule",
+            enabled: true,
+            priority: 100,
+            applyMode: "stack",
+            conditions: {
+              match: "any",
+              items: qualifyingItemIds.map((id) => ({
+                kind: "item",
+                id,
+                minQty: 1,
+              })),
+            },
+            actions: {
+              freeItems: [
+                {
+                  kind: "category",
+                  id: soupCategoryId,
+                  freeQty: 1,
+                  perMatchedItem: true,
+                },
+              ],
+            },
+          },
+        ];
+      }
+    }
+    if (rules.length > 0) {
+      const ctx = {
+        items: itemsWithMenu.map((x) => ({
+          ...x.item,
+          menuItem: x.menuItem,
+        })),
+        orderType: params.type,
+        role: user?.role || "pos",
+        tableId: params.tableId || null,
+        now: new Date(),
+      };
+      const pricing = await applyPricingRules({ itemsWithMenu, itemsData, rules, ctx });
+      itemsData = pricing.itemsData;
+      params.ruleDiscountAmount = pricing.ruleDiscount || 0;
+    }
 
     const subtotal = itemsData.reduce((sum, it) => sum + Number(it.totalPrice || 0), 0);
     let discountAmount = Number(params.discountAmount) || 0;
@@ -175,7 +232,8 @@ class OrdersService {
       }
     }
 
-    const totalDiscount = Math.min(subtotal, discountAmount + promoDiscount);
+    const ruleDiscount = Number(params.ruleDiscountAmount || 0);
+    const totalDiscount = Math.min(subtotal, discountAmount + promoDiscount + ruleDiscount);
     const total = subtotal - totalDiscount + serviceCharge + taxAmount;
 
     const order = await prisma.order.create({
@@ -213,7 +271,16 @@ class OrdersService {
 
     // Auto-send to kitchen on create (configurable)
     if (settings?.kitchenAutoPrint !== false) {
-      printKitchenTicket(order).catch(console.error);
+      const rules = normalizeRules(settings?.rules);
+      const ctx = {
+        items: order.items || [],
+        orderType: order.type,
+        role: user?.role || "pos",
+        tableId: order.table?.id || null,
+        now: new Date(),
+      };
+      const { kitchenOverrides } = applyPrintRules(order, settings, rules, ctx);
+      printKitchenTicket(order, kitchenOverrides).catch(console.error);
     }
     return order;
   }

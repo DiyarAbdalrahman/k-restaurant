@@ -2000,6 +2000,18 @@ export default function PosPage() {
                         >
                           Checkout
                         </button>
+                        {user?.role === "admin" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteOrderById(order.id);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-red-600/80 hover:bg-red-600"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </button>
                   );

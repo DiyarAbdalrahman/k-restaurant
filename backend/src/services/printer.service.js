@@ -246,7 +246,7 @@ async function printCustomerReceipt(order, settings) {
   const lastPayment = payments.filter((p) => p.kind !== "refund").slice(-1)[0];
 
   return sendToPrinter((printer) => {
-    printer.align("CT").size(2, 2).text("RECEIPT").size(1, 1);
+    printer.align("CT").size(1, 1).text("RECEIPT").size(1, 1);
     if (show.brandName) printWrapped(printer, brand, width);
     if (header) printWrapped(printer, header, width);
     printer.drawLine();

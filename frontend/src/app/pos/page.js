@@ -37,6 +37,7 @@ export default function PosPage() {
   const [isPaying, setIsPaying] = useState(false);
   const [isAddingItems, setIsAddingItems] = useState(false);
   const [addSendToKitchen, setAddSendToKitchen] = useState(true);
+  const [adminSendToKitchen, setAdminSendToKitchen] = useState(true);
 
   // Payment
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -1038,6 +1039,7 @@ export default function PosPage() {
         serviceCharge: Number(cartTotals.serviceCharge.toFixed(2)),
         total: Number(cartTotals.total.toFixed(2)),
         promotionIds: selectedPromos.map((p) => p.id),
+        sendToKitchen: user?.role === "admin" ? adminSendToKitchen : true,
         items: cart.map((c) => ({
           menuItemId: c.id,
           quantity: c.qty,
@@ -1054,7 +1056,11 @@ export default function PosPage() {
       setCart([]);
       setSelectedPromos([]);
 
-      toast.success("Order created and sent to kitchen");
+      toast.success(
+        user?.role === "admin" && !adminSendToKitchen
+          ? "Order created (not sent to kitchen)"
+          : "Order created and sent to kitchen"
+      );
 
       // IMPORTANT: switch right panel to Checkout for this order
       setSelectedOrder(res.data);
@@ -2900,14 +2906,31 @@ export default function PosPage() {
                     </label>
                   </div>
                 ) : (
-                  <button
-                    disabled={placingOrder || cart.length === 0}
-                    onClick={createOrder}
-                    className="w-full rounded-2xl py-3 text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:bg-white/10 disabled:text-white/40 active:scale-[0.98] transition"
-                    type="button"
-                  >
-                    {placingOrder ? "Creating..." : "Create Order (Auto-sent)"}
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      disabled={placingOrder || cart.length === 0}
+                      onClick={createOrder}
+                      className="w-full rounded-2xl py-3 text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:bg-white/10 disabled:text-white/40 active:scale-[0.98] transition"
+                      type="button"
+                    >
+                      {placingOrder
+                        ? "Creating..."
+                        : user?.role === "admin" && !adminSendToKitchen
+                        ? "Create Order (No kitchen)"
+                        : "Create Order (Auto-sent)"}
+                    </button>
+                    {user?.role === "admin" && (
+                      <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+                        <span className="text-white/70">Send to kitchen</span>
+                        <input
+                          type="checkbox"
+                          checked={adminSendToKitchen}
+                          onChange={(e) => setAdminSendToKitchen(e.target.checked)}
+                          className="h-5 w-9 accent-red-500"
+                        />
+                      </label>
+                    )}
+                  </div>
                 )}
 
                 {/* Adjustments (cart-only) */}

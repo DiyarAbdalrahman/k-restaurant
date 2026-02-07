@@ -236,12 +236,13 @@ class OrdersService {
     const totalDiscount = Math.min(subtotal, discountAmount + promoDiscount + ruleDiscount);
     const total = subtotal - totalDiscount + serviceCharge + taxAmount;
 
+    const sendToKitchen = params.sendToKitchen !== false;
     const order = await prisma.order.create({
       data: {
         type: params.type,
         diningTableId: params.tableId || null,
         openedByUserId: params.openedByUserId,
-        status: "sent_to_kitchen",
+        status: sendToKitchen ? "sent_to_kitchen" : "open",
         notes: params.notes || "",
 
         subtotal,
@@ -270,7 +271,7 @@ class OrdersService {
     });
 
     // Auto-send to kitchen on create (configurable)
-    if (settings?.kitchenAutoPrint !== false) {
+    if (sendToKitchen && settings?.kitchenAutoPrint !== false) {
       const rules = normalizeRules(settings?.rules);
       const ctx = {
         items: order.items || [],

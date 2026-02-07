@@ -33,6 +33,7 @@ const orderCreateSchema = z.object({
   discountAmount: numberFromString.optional().default(0),
   taxAmount: numberFromString.optional().default(0),
   serviceCharge: numberFromString.optional().default(0),
+  sendToKitchen: z.boolean().optional().default(true),
   promotionIds: z.array(z.string()).optional().default([]),
   items: z.array(orderItemSchema).min(1),
 });

@@ -2895,7 +2895,7 @@ export default function PosPage() {
                         type="checkbox"
                         checked={addSendToKitchen}
                         onChange={(e) => setAddSendToKitchen(e.target.checked)}
-                        className={toggleInput}
+                        className="h-5 w-9 accent-red-500"
                       />
                     </label>
                   </div>

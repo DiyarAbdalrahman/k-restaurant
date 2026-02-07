@@ -180,6 +180,7 @@ const settingsUpdateSchema = z.object({
   posShowFavorites: z.boolean().optional(),
   posShowRecent: z.boolean().optional(),
   posShowCategoryShortcuts: z.boolean().optional(),
+  posShowDiscounts: z.boolean().optional(),
   posMenuCardSize: z.string().optional(),
   kitchenSoundEnabled: z.boolean().optional(),
   kitchenLoudSound: z.boolean().optional(),

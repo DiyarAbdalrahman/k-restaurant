@@ -14,6 +14,7 @@ export default function PosPage() {
   const brandTagline = settings?.brandTagline || "";
   const panelLocked = settings?.posPanelAlwaysVisible === true;
   const defaultOrderType = settings?.posDefaultOrderType || "dine_in";
+  const showPosDiscounts = settings?.posShowDiscounts !== false;
   // -----------------------------
   // Core state
   // -----------------------------
@@ -496,8 +497,10 @@ export default function PosPage() {
     );
 
     let manualDiscount = 0;
-    if (discountType === "percent") manualDiscount = (subtotal * safeDiscount) / 100;
-    else if (discountType === "fixed") manualDiscount = safeDiscount;
+    if (showPosDiscounts) {
+      if (discountType === "percent") manualDiscount = (subtotal * safeDiscount) / 100;
+      else if (discountType === "fixed") manualDiscount = safeDiscount;
+    }
 
     let discountAmount = manualDiscount + Number(pricing.ruleDiscount || 0);
     if (discountAmount > subtotal) discountAmount = subtotal;
@@ -840,6 +843,10 @@ export default function PosPage() {
     }
     if (typeof settings.paymentDefaultMethod === "string") {
       setPaymentMethod(settings.paymentDefaultMethod);
+    }
+    if (settings.posShowDiscounts === false) {
+      setDiscountType("none");
+      setDiscountValue(0);
     }
   }, [settings]);
 
@@ -2227,10 +2234,12 @@ export default function PosPage() {
                   <Row label="Subtotal" value={`£${checkoutTotals.subtotal.toFixed(2)}`} />
 
                   <div className="pt-2 border-t border-white/10 space-y-1 text-xs text-white/70">
-                    <Row
-                      label="Discount"
-                      value={`-£${checkoutTotals.discountAmount.toFixed(2)}`}
-                    />
+                    {showPosDiscounts ? (
+                      <Row
+                        label="Discount"
+                        value={`-£${checkoutTotals.discountAmount.toFixed(2)}`}
+                      />
+                    ) : null}
                     <Row
                       label="Service"
                       value={`£${checkoutTotals.serviceCharge.toFixed(2)}`}
@@ -2784,29 +2793,33 @@ export default function PosPage() {
                   <Row label="Subtotal" value={`£${checkoutTotals.subtotal.toFixed(2)}`} />
 
                   <div className="grid grid-cols-12 gap-2 items-center text-xs">
-                    <div className="col-span-6">
-                      <label className="block text-[11px] text-white/60 mb-1">Discount</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={discountType}
-                          onChange={(e) => setDiscountType(e.target.value)}
-                          className="w-28 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none"
-                        >
-                          <option value="none">None</option>
-                          <option value="percent">%</option>
-                          <option value="fixed">£</option>
-                        </select>
+                    {showPosDiscounts ? (
+                      <div className="col-span-6">
+                        <label className="block text-[11px] text-white/60 mb-1">Discount</label>
+                        <div className="flex gap-2">
+                          <select
+                            value={discountType}
+                            onChange={(e) => setDiscountType(e.target.value)}
+                            className="w-28 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none"
+                          >
+                            <option value="none">None</option>
+                            <option value="percent">%</option>
+                            <option value="fixed">£</option>
+                          </select>
 
-                        <input
-                          type="number"
-                          disabled={discountType === "none"}
-                          value={discountType === "none" ? "" : discountValue}
-                          onChange={(e) => setDiscountValue(Number(e.target.value))}
-                          className="flex-1 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none disabled:opacity-40 focus:border-red-500/60"
-                          placeholder={discountType === "percent" ? "0" : "0.00"}
-                        />
+                          <input
+                            type="number"
+                            disabled={discountType === "none"}
+                            value={discountType === "none" ? "" : discountValue}
+                            onChange={(e) => setDiscountValue(Number(e.target.value))}
+                            className="flex-1 rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none disabled:opacity-40 focus:border-red-500/60"
+                            placeholder={discountType === "percent" ? "0" : "0.00"}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="col-span-6" />
+                    )}
 
                     <div className="col-span-3">
                       <label className="block text-[11px] text-white/60 mb-1">Service %</label>

@@ -67,6 +67,7 @@ export default function ManagerSettingsPage() {
     posShowFavorites: true,
     posShowRecent: true,
     posShowCategoryShortcuts: true,
+    posShowDiscounts: true,
     posMenuCardSize: "md",
     paymentDefaultMethod: "cash",
     paymentAllowOverpay: false,
@@ -590,6 +591,17 @@ export default function ManagerSettingsPage() {
                       checked={form.posShowCategoryShortcuts}
                       onChange={(e) =>
                         setForm({ ...form, posShowCategoryShortcuts: e.target.checked })
+                      }
+                      className={toggleInput}
+                    />
+                  </label>
+                  <label className={toggleWrap}>
+                    <span className={toggleLabel}>Show discount controls in POS</span>
+                    <input
+                      type="checkbox"
+                      checked={form.posShowDiscounts}
+                      onChange={(e) =>
+                        setForm({ ...form, posShowDiscounts: e.target.checked })
                       }
                       className={toggleInput}
                     />

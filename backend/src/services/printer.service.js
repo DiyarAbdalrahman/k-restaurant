@@ -248,7 +248,6 @@ async function printCustomerReceipt(order, settings) {
   return sendToPrinter((printer) => {
     printer.align("CT").size(1, 1).text("RECEIPT");
     printer.size(1, 1);
-    printer.textStyle("NORMAL");
     if (show.brandName) printWrapped(printer, brand, width);
     if (header) printWrapped(printer, header, width);
     printer.drawLine();

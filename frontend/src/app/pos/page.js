@@ -80,6 +80,11 @@ export default function PosPage() {
   const [promos, setPromos] = useState([]);
   const [selectedPromos, setSelectedPromos] = useState([]);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [printHealth, setPrintHealth] = useState({
+    ok: true,
+    reason: null,
+    checkedAt: null,
+  });
 
   // Modern menu controls
   const [search, setSearch] = useState("");
@@ -302,6 +307,37 @@ export default function PosPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [visibleItems, placingOrder, cart.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // -----------------------------
+  // Print bridge health (every 15s)
+  // -----------------------------
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const res = await api.get("/health/print-bridge");
+        if (!alive) return;
+        setPrintHealth({
+          ok: Boolean(res?.data?.ok),
+          reason: res?.data?.reason || res?.data?.error || null,
+          checkedAt: Date.now(),
+        });
+      } catch (_err) {
+        if (!alive) return;
+        setPrintHealth({
+          ok: false,
+          reason: "unreachable",
+          checkedAt: Date.now(),
+        });
+      }
+    };
+    check();
+    const id = setInterval(check, 15000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
 
   // -----------------------------
   // API: load orders
@@ -1153,6 +1189,9 @@ export default function PosPage() {
               <div className="text-xs text-white/60">
                 {headerOrderLabel} • Orders: {openOrders.length} • Press “/” to search
               </div>
+              <div className="sm:hidden text-[11px] text-white/60">
+                Printer: {printHealth.ok ? "Online" : "Offline"}
+              </div>
               {brandTagline ? (
                 <div className="text-[11px] text-white/50">{brandTagline}</div>
               ) : null}
@@ -1160,6 +1199,17 @@ export default function PosPage() {
           </div>
 
           <div className="flex items-center gap-4 text-sm">
+            <div className="hidden sm:flex items-center gap-2 text-[11px] text-white/70">
+              <span
+                className={[
+                  "inline-block w-2.5 h-2.5 rounded-full",
+                  printHealth.ok ? "bg-emerald-400" : "bg-red-400",
+                ].join(" ")}
+              />
+              <span>
+                Printer {printHealth.ok ? "Online" : "Offline"}
+              </span>
+            </div>
             <label className="hidden md:flex items-center gap-2 text-xs text-white/70">
               <input
                 type="checkbox"

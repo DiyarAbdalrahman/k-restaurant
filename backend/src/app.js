@@ -29,6 +29,37 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// Print bridge health check (no auth)
+app.get("/api/health/print-bridge", async (_req, res) => {
+  const bridgeUrl = process.env.PRINT_BRIDGE_URL;
+  const bridgeSecret = process.env.PRINT_BRIDGE_SECRET;
+  if (!bridgeUrl) {
+    return res.json({ ok: false, reason: "not_configured" });
+  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 1500);
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (bridgeSecret) headers["x-print-secret"] = bridgeSecret;
+    const response = await fetch(bridgeUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ raw: "" }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return res.json({ ok: false, reason: `bridge_${response.status}`, error: text });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    const message = err?.name === "AbortError" ? "timeout" : "unreachable";
+    return res.json({ ok: false, reason: message });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+});
+
 // Routes
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);

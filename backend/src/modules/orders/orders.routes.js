@@ -6,7 +6,7 @@ const {
   requireRole,
 } = require("../../middleware/auth.middleware");
 const { validateBody } = require("../../middleware/validate.middleware");
-const { orderCreateSchema, orderStatusSchema, orderAddItemsSchema } = require("../../validation/schemas");
+const { orderCreateSchema, orderStatusSchema, orderAddItemsSchema, orderUpdateItemsSchema } = require("../../validation/schemas");
 
 const ordersRouter = Router();
 
@@ -35,6 +35,14 @@ ordersRouter.post(
   requireRole("waiter", "admin", "pos"),
   validateBody(orderAddItemsSchema),
   (req, res, next) => ordersController.addItems(req, res, next)
+);
+
+// UPDATE ITEMS on existing open order (add/remove)
+ordersRouter.post(
+  "/:id/update-items",
+  requireRole("waiter", "admin", "pos"),
+  validateBody(orderUpdateItemsSchema),
+  (req, res, next) => ordersController.updateItems(req, res, next)
 );
 
 // Lookup by ID prefix

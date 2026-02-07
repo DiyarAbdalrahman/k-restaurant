@@ -205,6 +205,24 @@ class OrdersController {
       next(err);
     }
   }
+
+  async updateItems(req, res, next) {
+    try {
+      const order = await ordersService.updateItems(req.params.id, {
+        items: req.body.items || [],
+        sendToKitchen: req.body.sendToKitchen !== false,
+        userId: req.user?.id,
+        role: req.user?.role || "pos",
+      });
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      emitOrderUpdated(order);
+      res.json(order);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 const ordersController = new OrdersController();

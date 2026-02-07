@@ -465,6 +465,201 @@ class OrdersService {
     return updatedOrder;
   }
 
+  async updateItems(orderId, { items, sendToKitchen = true, userId, role }) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, isDeleted: false },
+      include: {
+        items: { include: { menuItem: { include: { category: true } } } },
+        table: true,
+        payments: true,
+        openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
+      },
+    });
+    if (!order) return null;
+    if (order.status === "paid" || order.status === "cancelled") {
+      throw new Error("Cannot edit a closed order.");
+    }
+
+    const settings = await prisma.settings.findFirst();
+    const rules = normalizeRules(settings?.rules);
+
+    const itemsWithMenu = await Promise.all(
+      items.map(async (item) => {
+        const menuItem = await prisma.menuItem.findUnique({
+          where: { id: item.menuItemId },
+          include: { category: true },
+        });
+        if (!menuItem) throw new Error(`Menu item not found: ${item.menuItemId}`);
+        return {
+          item: {
+            menuItemId: item.menuItemId,
+            quantity: Number(item.quantity || 0),
+            notes: item.notes || "",
+            guest: Number(item.guest) || 1,
+            _existingId: item.orderItemId || null,
+          },
+          menuItem,
+        };
+      })
+    );
+
+    let itemsData = itemsWithMenu.map(({ item, menuItem }) => {
+      const qty = Number(item.quantity || 0);
+      const base = Number(menuItem.basePrice || 0);
+      return {
+        menuItemId: item.menuItemId,
+        quantity: qty,
+        notes: item.notes || "",
+        guest: Number(item.guest) || 1,
+        unitPrice: base,
+        totalPrice: base * qty,
+        _existingId: item._existingId || null,
+      };
+    });
+
+    if (rules.length > 0) {
+      const ctx = {
+        items: itemsWithMenu.map((x) => ({
+          ...x.item,
+          menuItem: x.menuItem,
+        })),
+        orderType: order.type,
+        role: role || "pos",
+        tableId: order.table?.id || null,
+        now: new Date(),
+      };
+      const pricing = await applyPricingRules({
+        itemsWithMenu,
+        itemsData,
+        rules,
+        ctx,
+      });
+      itemsData = pricing.itemsData.map((x, idx) => ({
+        ...x,
+        _existingId: itemsData[idx]?._existingId || null,
+      }));
+    }
+
+    const subtotal = itemsData.reduce((sum, it) => sum + Number(it.totalPrice || 0), 0);
+    let discountAmount = Number(order.discountAmount) || 0;
+    if (discountAmount < 0) discountAmount = 0;
+    if (discountAmount > subtotal) discountAmount = subtotal;
+    const servicePercent = Number(settings?.defaultServiceChargePercent || 0);
+    const taxPercent = Number(settings?.defaultTaxPercent || 0);
+    const serviceCharge = (subtotal - discountAmount) * (servicePercent / 100);
+    const taxAmount = (subtotal - discountAmount + serviceCharge) * (taxPercent / 100);
+    const total = subtotal - discountAmount + serviceCharge + taxAmount;
+
+    const existingById = new Map(order.items.map((it) => [it.id, it]));
+    const updatedIds = new Set(
+      itemsData.filter((x) => x._existingId).map((x) => x._existingId)
+    );
+    const deleteIds = order.items
+      .filter((it) => !updatedIds.has(it.id))
+      .map((it) => it.id);
+
+    const newLines = itemsData.filter((x) => !x._existingId);
+
+    const increasedLines = itemsData
+      .filter((x) => x._existingId)
+      .map((x) => {
+        const existing = existingById.get(x._existingId);
+        if (!existing) return null;
+        const delta = Number(x.quantity || 0) - Number(existing.quantity || 0);
+        if (delta <= 0) return null;
+        return {
+          ...x,
+          quantity: delta,
+        };
+      })
+      .filter(Boolean);
+
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      if (deleteIds.length > 0) {
+        await tx.orderItem.deleteMany({ where: { id: { in: deleteIds } } });
+      }
+
+      for (const line of itemsData.filter((x) => x._existingId)) {
+        await tx.orderItem.update({
+          where: { id: line._existingId },
+          data: {
+            quantity: Number(line.quantity || 0),
+            unitPrice: Number(line.unitPrice || 0),
+            totalPrice: Number(line.totalPrice || 0),
+            notes: line.notes || "",
+            guest: Number(line.guest) || 1,
+          },
+        });
+      }
+
+      if (newLines.length > 0) {
+        await tx.orderItem.createMany({
+          data: newLines.map((line) => ({
+            orderId: order.id,
+            menuItemId: line.menuItemId,
+            quantity: Number(line.quantity || 0),
+            unitPrice: Number(line.unitPrice || 0),
+            totalPrice: Number(line.totalPrice || 0),
+            notes: line.notes || "",
+            guest: Number(line.guest) || 1,
+          })),
+        });
+      }
+
+      return tx.order.update({
+        where: { id: order.id },
+        data: {
+          subtotal,
+          discountAmount,
+          serviceCharge,
+          taxAmount,
+          total,
+          status: sendToKitchen && order.status === "open" ? "sent_to_kitchen" : order.status,
+        },
+        include: {
+          items: { include: { menuItem: true } },
+          table: true,
+          payments: true,
+          openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
+        },
+      });
+    });
+
+    const kitchenLines = [...newLines, ...increasedLines];
+    if (sendToKitchen && kitchenLines.length > 0) {
+      const newItemsOnly = kitchenLines.map((line) => {
+        const existing = existingById.get(line._existingId);
+        const foundMenu =
+          existing?.menuItem ||
+          itemsWithMenu.find((x) => x.item.menuItemId === line.menuItemId)?.menuItem;
+        return {
+          menuItemId: line.menuItemId,
+          quantity: line.quantity,
+          notes: line.notes,
+          guest: line.guest,
+          menuItem: foundMenu,
+        };
+      });
+
+      const printOrder = {
+        ...updatedOrder,
+        items: newItemsOnly,
+      };
+
+      const ctx = {
+        items: updatedOrder.items || [],
+        orderType: updatedOrder.type,
+        role: role || "pos",
+        tableId: updatedOrder.table?.id || null,
+        now: new Date(),
+      };
+      const { kitchenOverrides } = applyPrintRules(updatedOrder, settings, rules, ctx);
+      await printKitchenTicket(printOrder, kitchenOverrides);
+    }
+
+    return updatedOrder;
+  }
+
   // UPDATE STATUS (KITCHEN / POS)
   async updateStatus(id, status) {
   const allowedStatuses = [

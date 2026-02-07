@@ -1077,9 +1077,26 @@ export default function PosPage() {
   }
 
   // -----------------------------
-  // Add items to existing order
+  // Edit existing order (add/remove)
   // -----------------------------
-  async function addItemsToOrder() {
+  function loadOrderIntoCart(order) {
+    if (!order) return;
+    const items = (order.items || []).map((it) => ({
+      id: it.menuItemId,
+      name: it.menuItem?.name || "Item",
+      basePrice: Number(it.menuItem?.basePrice || it.unitPrice || 0),
+      categoryId: it.menuItem?.categoryId || null,
+      imageUrl: it.menuItem?.imageUrl || "",
+      qty: Number(it.quantity || 0),
+      note: it.notes || "",
+      guest: Number(it.guest) || 1,
+      orderItemId: it.id,
+    }));
+    setCart(items);
+    setSelectedPromos([]);
+  }
+
+  async function updateOrderItems() {
     if (!addOrder) return;
     if (cart.length === 0) {
       toast.error("Cart is empty");
@@ -1094,11 +1111,12 @@ export default function PosPage() {
           quantity: c.qty,
           notes: c.note || "",
           guest: Number(c.guest) || 1,
+          orderItemId: c.orderItemId || undefined,
         })),
         sendToKitchen: addSendToKitchen,
       };
-      const res = await api.post(`/orders/${addOrder.id}/add-items`, body);
-      toast.success("Items added to order");
+      const res = await api.post(`/orders/${addOrder.id}/update-items`, body);
+      toast.success("Order updated");
       setCart([]);
       setSelectedPromos([]);
       setAddOrder(null);
@@ -1106,7 +1124,7 @@ export default function PosPage() {
       await loadOrders();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add items");
+      toast.error("Failed to update order");
     } finally {
       setIsAddingItems(false);
     }
@@ -1975,15 +1993,15 @@ export default function PosPage() {
                             if (selectedOrder && !(await confirmLeaveUnpaid())) return;
                             setSelectedOrder(null);
                             setAddOrder(order);
-                            setCart([]);
+                            loadOrderIntoCart(order);
                             setSelectedPromos([]);
                             setSelectedTableId(order?.table?.id || order?.tableId || null);
                             setShowRight(true);
                             setAddSendToKitchen(true);
                           }}
-                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
+                        className="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
                         >
-                          Add items
+                          Edit order
                         </button>
                         <button
                           type="button"
@@ -2296,7 +2314,7 @@ export default function PosPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className={["font-semibold", compactMode ? "text-xs" : "text-sm"].join(" ")}>
-                  {selectedOrder ? "Checkout" : addOrder ? "Add Items" : "Cart"}
+                  {selectedOrder ? "Checkout" : addOrder ? "Edit Order" : "Cart"}
                 </div>
                 <div className="text-xs text-white/60">
                   {selectedOrder ? (
@@ -2901,14 +2919,14 @@ export default function PosPage() {
                   <div className="space-y-2">
                     <button
                       disabled={isAddingItems || cart.length === 0}
-                      onClick={addItemsToOrder}
+                      onClick={updateOrderItems}
                       className="w-full rounded-2xl py-3 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/10 disabled:text-white/40 active:scale-[0.98] transition"
                       type="button"
                     >
-                      {isAddingItems ? "Adding..." : "Add Items to Order"}
+                      {isAddingItems ? "Saving..." : "Save Changes"}
                     </button>
                     <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
-                      <span className="text-white/70">Send to kitchen</span>
+                      <span className="text-white/70">Send updates to kitchen</span>
                       <input
                         type="checkbox"
                         checked={addSendToKitchen}

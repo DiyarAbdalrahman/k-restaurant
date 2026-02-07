@@ -24,6 +24,7 @@ const orderItemSchema = z.object({
   quantity: positiveIntFromString,
   guest: boundedGuestFromString,
   notes: z.string().optional().default(""),
+  orderItemId: z.string().optional(),
 });
 
 const orderCreateSchema = z.object({
@@ -51,6 +52,11 @@ const orderStatusSchema = z.object({
 });
 
 const orderAddItemsSchema = z.object({
+  items: z.array(orderItemSchema).min(1),
+  sendToKitchen: z.boolean().optional().default(true),
+});
+
+const orderUpdateItemsSchema = z.object({
   items: z.array(orderItemSchema).min(1),
   sendToKitchen: z.boolean().optional().default(true),
 });
@@ -215,6 +221,7 @@ module.exports = {
   orderCreateSchema,
   orderStatusSchema,
   orderAddItemsSchema,
+  orderUpdateItemsSchema,
   paymentSchema,
   authLoginSchema,
   authRegisterSchema,

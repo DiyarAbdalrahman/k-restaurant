@@ -101,6 +101,7 @@ async function printKitchenTicket(order) {
     order.openedByUser?.fullName ||
     order.openedByUser?.username ||
     "-";
+  const width = 42;
 
   return sendToPrinter((printer) => {
     printer
@@ -124,11 +125,14 @@ async function printKitchenTicket(order) {
     Array.from(groups.keys()).sort((a, b) => a - b).forEach((guest) => {
       printer.text(`Guest ${guest}`);
       groups.get(guest).forEach((item) => {
-        const name = normalizePrintText(item.menuItem?.name || "Item");
+        const name = item.menuItem?.name || "Item";
         const qty = item.quantity;
-        printer.text(`  ${qty} x ${name}`);
+        const label = `  ${qty} x ${normalizePrintText(name)}`;
+        wrapText(label, width).forEach((line) => printer.text(line));
         if (item.notes) {
-          printer.text(`   > ${normalizePrintText(item.notes)}`);
+          wrapText(`   > ${normalizePrintText(item.notes)}`, width).forEach((line) =>
+            printer.text(line)
+          );
         }
       });
     });

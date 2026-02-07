@@ -50,6 +50,7 @@ model User {
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   ordersOpened Order[]   @relation("UserOpenedOrders")
+  ordersDeleted Order[] @relation("DeletedOrders")
   payments     Payment[]
 }
 
@@ -108,6 +109,11 @@ model Order {
 
   openedByUserId String
   openedByUser   User   @relation("UserOpenedOrders", fields: [openedByUserId], references: [id])
+
+  isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
+  deletedByUserId String?
+  deletedByUser User? @relation("DeletedOrders", fields: [deletedByUserId], references: [id])
 
   items    OrderItem[]
   payments Payment[]

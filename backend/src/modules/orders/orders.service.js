@@ -7,6 +7,7 @@ class OrdersService {
   async listOpenOrders() {
     return prisma.order.findMany({
       where: {
+        isDeleted: false,
         status: {
           in: ["open", "sent_to_kitchen", "in_progress", "ready"],
         },
@@ -23,8 +24,8 @@ class OrdersService {
 
   // GET ONE
   async getOrder(id) {
-    return prisma.order.findUnique({
-      where: { id },
+    return prisma.order.findFirst({
+      where: { id, isDeleted: false },
       include: {
         items: { include: { menuItem: true } },
         table: true,
@@ -37,7 +38,7 @@ class OrdersService {
   // FIND BY ID PREFIX (for refunds/search)
   async findByPrefix(prefix) {
     return prisma.order.findFirst({
-      where: { id: { startsWith: prefix } },
+      where: { id: { startsWith: prefix }, isDeleted: false },
       include: {
         items: { include: { menuItem: true } },
         table: true,
@@ -200,13 +201,17 @@ class OrdersService {
 }
 
   // LIST HISTORY (admin/manager)
-  async listHistory({ from, to, q, status, limit = 200 }) {
+  async listHistory({ from, to, q, status, limit = 200, includeDeleted = false }) {
     const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const toDate = to ? new Date(to) : new Date();
 
     const where = {
       createdAt: { gte: fromDate, lte: toDate },
     };
+
+    if (!includeDeleted) {
+      where.isDeleted = false;
+    }
 
     if (status && status !== "all") {
       where.status = status;
@@ -230,18 +235,25 @@ class OrdersService {
   }
 
   // DELETE ORDER (admin only)
-  async deleteOrder(id) {
+  async deleteOrder(id, deletedByUserId) {
     const existing = await prisma.order.findUnique({ where: { id } });
     if (!existing) return null;
+    if (existing.isDeleted) return existing;
 
-    await prisma.$transaction([
-      prisma.orderPromotion.deleteMany({ where: { orderId: id } }),
-      prisma.payment.deleteMany({ where: { orderId: id } }),
-      prisma.orderItem.deleteMany({ where: { orderId: id } }),
-      prisma.order.delete({ where: { id } }),
-    ]);
-
-    return existing;
+    return prisma.order.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedByUserId,
+      },
+      include: {
+        items: { include: { menuItem: true } },
+        table: true,
+        payments: true,
+        openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
+      },
+    });
   }
 
 }

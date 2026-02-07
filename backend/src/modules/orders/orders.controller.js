@@ -17,13 +17,14 @@ class OrdersController {
 
   async listHistory(req, res, next) {
     try {
-      const { from, to, q, status, limit } = req.query;
+      const { from, to, q, status, limit, includeDeleted } = req.query;
       const orders = await ordersService.listHistory({
         from,
         to,
         q: q ? String(q).trim().replace(/^#/, "") : "",
         status,
         limit,
+        includeDeleted: String(includeDeleted) === "true",
       });
       res.json(orders);
     } catch (err) {
@@ -156,11 +157,11 @@ class OrdersController {
 
   async delete(req, res, next) {
     try {
-      const deleted = await ordersService.deleteOrder(req.params.id);
+      const deleted = await ordersService.deleteOrder(req.params.id, req.user?.id);
       if (!deleted) {
         return res.status(404).json({ message: "Order not found" });
       }
-      res.json({ message: "Order deleted", id: deleted.id });
+      res.json({ message: "Order archived", id: deleted.id });
     } catch (err) {
       next(err);
     }

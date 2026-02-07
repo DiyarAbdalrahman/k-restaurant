@@ -44,6 +44,7 @@ export default function ManagerOrdersPage() {
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(200);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   useEffect(() => {
     const u = getUser();
@@ -62,7 +63,7 @@ export default function ManagerOrdersPage() {
     if (!user) return;
     loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, from, to, status, limit]);
+  }, [user, from, to, status, limit, showDeleted]);
 
   async function loadHistory() {
     try {
@@ -75,6 +76,7 @@ export default function ManagerOrdersPage() {
           status,
           limit,
           q: q.trim(),
+          includeDeleted: showDeleted ? "true" : "false",
         },
       });
       setOrders(res.data || []);
@@ -88,14 +90,14 @@ export default function ManagerOrdersPage() {
   }
 
   async function deleteOrder(orderId) {
-    const ok = window.confirm("Delete this order and its payments? This cannot be undone.");
+    const ok = window.confirm("Archive this order? It will be hidden from normal views.");
     if (!ok) return;
     try {
       await api.delete(`/orders/${orderId}`);
-      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, isDeleted: true } : o)));
     } catch (e) {
       console.error(e);
-      alert("Failed to delete order");
+      alert("Failed to archive order");
     }
   }
 
@@ -211,6 +213,14 @@ export default function ManagerOrdersPage() {
               className="w-full bg-transparent outline-none text-sm"
             />
           </div>
+          <label className="lg:col-span-2 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white/70">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+            />
+            Show archived
+          </label>
         </div>
 
         <div className="rounded-2xl bg-white/[0.04] border border-white/10 overflow-hidden">
@@ -231,7 +241,10 @@ export default function ManagerOrdersPage() {
               rows.map((o) => (
                 <div
                   key={o.id}
-                  className="grid grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03] text-sm"
+                  className={[
+                    "grid grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03] text-sm",
+                    o.isDeleted ? "opacity-60" : "",
+                  ].join(" ")}
                 >
                   <div className="col-span-3">
                     <div className="font-semibold">#{String(o.id).slice(0, 8)}</div>
@@ -241,7 +254,7 @@ export default function ManagerOrdersPage() {
                     {o.type === "dine_in" ? `Table ${o.table?.name || "?"}` : "Takeaway"}
                   </div>
                   <div className="col-span-2 text-xs text-white/70">
-                    {o.status}
+                    {o.isDeleted ? "archived" : o.status}
                   </div>
                   <div className="col-span-2 text-right font-semibold">
                     {formatGBP(o.total)}
@@ -253,10 +266,16 @@ export default function ManagerOrdersPage() {
                     {user.role === "admin" ? (
                       <button
                         onClick={() => deleteOrder(o.id)}
-                        className="px-2 py-1 text-[10px] rounded-lg bg-red-600/80 hover:bg-red-600"
+                        disabled={o.isDeleted}
+                        className={[
+                          "px-2 py-1 text-[10px] rounded-lg",
+                          o.isDeleted
+                            ? "bg-white/10 text-white/40 cursor-not-allowed"
+                            : "bg-red-600/80 hover:bg-red-600",
+                        ].join(" ")}
                         type="button"
                       >
-                        Delete
+                        {o.isDeleted ? "Archived" : "Archive"}
                       </button>
                     ) : (
                       <span className="text-[10px] text-white/30">—</span>

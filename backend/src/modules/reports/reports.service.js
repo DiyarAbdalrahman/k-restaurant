@@ -44,6 +44,7 @@ class ReportsService {
         FROM "Payment" p
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
+          AND o."isDeleted" = false
           ${typeCond}
           ${methodCond}
         GROUP BY bucket
@@ -61,6 +62,7 @@ class ReportsService {
         FROM "Payment" p
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
+          AND o."isDeleted" = false
           ${typeCond}
           ${methodCond}
         GROUP BY bucket
@@ -74,7 +76,7 @@ class ReportsService {
       where: {
         createdAt: { gte: range.from, lte: range.to },
         ...(method !== "all" ? { method } : {}),
-        order: { ...(type !== "all" ? { type } : {}) },
+        order: { isDeleted: false, ...(type !== "all" ? { type } : {}) },
       },
       _sum: { amount: true },
       _count: { _all: true },
@@ -89,7 +91,7 @@ class ReportsService {
       by: ["orderId"],
       where: {
         createdAt: { gte: range.from, lte: range.to },
-        order: { ...(type !== "all" ? { type } : {}) },
+        order: { isDeleted: false, ...(type !== "all" ? { type } : {}) },
         ...(method !== "all" ? { method } : {}),
       },
       _count: { orderId: true },
@@ -107,6 +109,7 @@ class ReportsService {
         FROM "Payment" p
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
+          AND o."isDeleted" = false
           ${typeCond}
           ${methodCond}
         GROUP BY p.method
@@ -125,6 +128,7 @@ class ReportsService {
         JOIN "User" u ON u.id = p."createdBy"
         JOIN "Order" o ON o.id = p."orderId"
         WHERE p."createdAt" BETWEEN ${range.from} AND ${range.to}
+          AND o."isDeleted" = false
           ${typeCond}
           ${methodCond}
         GROUP BY u."fullName"
@@ -169,6 +173,7 @@ class ReportsService {
           JOIN "Order" o ON o.id = p."orderId"
           WHERE p.kind = 'payment'
             AND p."createdAt" BETWEEN ${range.from} AND ${range.to}
+            AND o."isDeleted" = false
             ${typeCond}
         )
         SELECT
@@ -215,13 +220,13 @@ class ReportsService {
 
     const curr = await prisma.orderItem.groupBy({
       by: ["menuItemId"],
-      where: { order: { status: "paid", createdAt: { gte: range.from, lte: range.to } } },
+      where: { order: { status: "paid", isDeleted: false, createdAt: { gte: range.from, lte: range.to } } },
       _sum: { quantity: true },
     });
 
     const prev = await prisma.orderItem.groupBy({
       by: ["menuItemId"],
-      where: { order: { status: "paid", createdAt: { gte: prevFrom, lte: prevTo } } },
+      where: { order: { status: "paid", isDeleted: false, createdAt: { gte: prevFrom, lte: prevTo } } },
       _sum: { quantity: true },
     });
 

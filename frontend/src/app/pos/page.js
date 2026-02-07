@@ -119,6 +119,22 @@ export default function PosPage() {
     }, 0);
   }
 
+  const categoryNameById = useMemo(() => {
+    return new Map((menu || []).map((c) => [c.id, c.name]));
+  }, [menu]);
+
+  function isSoupItem(item) {
+    const catName =
+      categoryNameById.get(item.categoryId) ||
+      item.category?.name ||
+      "";
+    return String(catName).trim().toLowerCase() === "soup";
+  }
+
+  const cartHasNonSoup = useMemo(() => {
+    return cart.some((item) => !isSoupItem(item));
+  }, [cart, categoryNameById]);
+
   const cartTotals = useMemo(() => {
     const safeDiscount = Number(discountValue) || 0;
     const safeService = Number(serviceChargePercent) || 0;
@@ -255,22 +271,6 @@ export default function PosPage() {
     }
     return map;
   }, [menu]);
-
-  const categoryNameById = useMemo(() => {
-    return new Map((menu || []).map((c) => [c.id, c.name]));
-  }, [menu]);
-
-  function isSoupItem(item) {
-    const catName =
-      categoryNameById.get(item.categoryId) ||
-      item.category?.name ||
-      "";
-    return String(catName).trim().toLowerCase() === "soup";
-  }
-
-  const cartHasNonSoup = useMemo(() => {
-    return cart.some((item) => !isSoupItem(item));
-  }, [cart, categoryNameById]);
 
   const favoriteItems = useMemo(() => {
     return favorites.map((id) => allItemsById.get(id)).filter(Boolean);

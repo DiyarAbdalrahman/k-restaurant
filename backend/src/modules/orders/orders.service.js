@@ -69,29 +69,7 @@ class OrdersService {
 
     const isSoup = (menuItem) =>
       String(menuItem?.category?.name || "").trim().toLowerCase() === "soup";
-    const isMain = (menuItem) =>
-      String(menuItem?.category?.name || "").trim().toLowerCase() === "mains";
-
-    const platterFreeMap = {
-      ONE: 1,
-      TWO: 2,
-      FOUR: 4,
-      SIX: 6,
-    };
-    const getPlatterFree = (name) => {
-      const upper = String(name || "").toUpperCase();
-      const match = upper.match(/PLATTER.*(ONE|TWO|FOUR|SIX)/);
-      if (!match) return 0;
-      return platterFreeMap[match[1]] || 0;
-    };
-
-    let freeSoupRemaining = 0;
-    if (itemsWithMenu.some(({ menuItem }) => isMain(menuItem))) {
-      freeSoupRemaining += 1;
-    }
-    for (const { menuItem } of itemsWithMenu) {
-      freeSoupRemaining += getPlatterFree(menuItem?.name);
-    }
+    const hasNonSoup = itemsWithMenu.some(({ menuItem }) => !isSoup(menuItem));
 
     const itemsData = itemsWithMenu.map(({ item, menuItem }) => {
       const qty = Number(item.quantity || 0);
@@ -99,12 +77,9 @@ class OrdersService {
       let unitPrice = base;
       let totalPrice = base * qty;
 
-      if (isSoup(menuItem) && freeSoupRemaining > 0 && qty > 0) {
-        const freeQty = Math.min(qty, freeSoupRemaining);
-        const paidQty = qty - freeQty;
-        totalPrice = base * paidQty;
-        if (paidQty === 0) unitPrice = 0;
-        freeSoupRemaining -= freeQty;
+      if (isSoup(menuItem) && hasNonSoup && qty > 0) {
+        unitPrice = 0;
+        totalPrice = 0;
       }
 
       return {

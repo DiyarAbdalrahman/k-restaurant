@@ -136,6 +136,12 @@ async function printKitchenTicket(order) {
   }, "GB18030");
 }
 
+function formatGBP(value) {
+  const n = Number(value || 0);
+  // Use ASCII-safe currency to avoid codepage issues on some printers
+  return `GBP ${n.toFixed(2)}`;
+}
+
 async function printCustomerReceipt(order, settings) {
   const brand = settings?.brandName || "Kurda Restaurant";
   const header = settings?.receiptHeaderText || "";
@@ -163,9 +169,6 @@ async function printCustomerReceipt(order, settings) {
   const lastPayment = payments.filter((p) => p.kind !== "refund").slice(-1)[0];
 
   return sendToPrinter((printer) => {
-    // Use CP858 for better £ support on common ESC/POS printers
-    printer.codepage("CP858");
-    printer.encode("CP858");
     printer.align("CT").size(2, 2).text("RECEIPT").size(1, 1);
     if (show.brandName) printer.text(brand);
     if (header) printer.text(header);
@@ -187,7 +190,7 @@ async function printCustomerReceipt(order, settings) {
         const name = item.menuItem?.name || "Item";
         const qty = item.quantity;
         const amount = Number(item.totalPrice || item.unitPrice * item.quantity || 0).toFixed(2);
-        printer.text(`${qty} x ${name}  £${amount}`);
+        printer.text(`${qty} x ${name}  ${formatGBP(amount)}`);
         if (show.itemNotes && item.notes) {
           printer.text(`  > ${item.notes}`);
         }
@@ -196,13 +199,13 @@ async function printCustomerReceipt(order, settings) {
 
     if (show.totals) {
       printer.drawLine();
-      printer.text(`Subtotal: £${Number(order.subtotal || 0).toFixed(2)}`);
-      if (show.discounts) printer.text(`Discount: -£${Number(order.discountAmount || 0).toFixed(2)}`);
-      printer.text(`Service: £${Number(order.serviceCharge || 0).toFixed(2)}`);
-      printer.text(`Tax: £${Number(order.taxAmount || 0).toFixed(2)}`);
-      printer.text(`Total: £${Number(order.total || 0).toFixed(2)}`);
-      printer.text(`Paid: £${Number(netPaid || 0).toFixed(2)}`);
-      if (show.balance) printer.text(`Balance: £${Number(remaining || 0).toFixed(2)}`);
+      printer.text(`Subtotal: ${formatGBP(order.subtotal)}`);
+      if (show.discounts) printer.text(`Discount: -${formatGBP(order.discountAmount)}`);
+      printer.text(`Service: ${formatGBP(order.serviceCharge)}`);
+      printer.text(`Tax: ${formatGBP(order.taxAmount)}`);
+      printer.text(`Total: ${formatGBP(order.total)}`);
+      printer.text(`Paid: ${formatGBP(netPaid)}`);
+      if (show.balance) printer.text(`Balance: ${formatGBP(remaining)}`);
     }
     if (show.method && lastPayment) {
       printer.text(`Method: ${lastPayment.method}`);

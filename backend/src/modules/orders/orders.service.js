@@ -67,8 +67,16 @@ class OrdersService {
       })
     );
 
-    const isSoup = (menuItem) =>
-      String(menuItem?.category?.name || "").trim().toLowerCase() === "soup";
+    const isSoupCategoryName = (name) => {
+      const n = String(name || "").trim().toLowerCase();
+      if (!n) return false;
+      if (n.includes("soup")) return true;
+      if (n.includes("shle")) return true;
+      if (n.includes("شله")) return true;
+      return false;
+    };
+
+    const isSoup = (menuItem) => isSoupCategoryName(menuItem?.category?.name);
     const hasNonSoup = itemsWithMenu.some(({ menuItem }) => !isSoup(menuItem));
 
     const itemsData = itemsWithMenu.map(({ item, menuItem }) => {

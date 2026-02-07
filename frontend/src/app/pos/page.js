@@ -123,12 +123,21 @@ export default function PosPage() {
     return new Map((menu || []).map((c) => [c.id, c.name]));
   }, [menu]);
 
+  function isSoupCategoryName(name) {
+    const n = String(name || "").trim().toLowerCase();
+    if (!n) return false;
+    if (n.includes("soup")) return true;
+    if (n.includes("shle")) return true;
+    if (n.includes("شله")) return true;
+    return false;
+  }
+
   function isSoupItem(item) {
     const catName =
       categoryNameById.get(item.categoryId) ||
       item.category?.name ||
       "";
-    return String(catName).trim().toLowerCase() === "soup";
+    return isSoupCategoryName(catName);
   }
 
   const cartHasNonSoup = useMemo(() => {

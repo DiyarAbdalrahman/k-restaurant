@@ -535,17 +535,8 @@ class OrdersService {
 
   // DELETE ORDER (admin only)
   async deleteOrder(id, deletedByUserId) {
-    const existing = await prisma.order.findUnique({ where: { id } });
-    if (!existing) return null;
-    if (existing.isDeleted) return existing;
-
-    return prisma.order.update({
+    const existing = await prisma.order.findUnique({
       where: { id },
-      data: {
-        isDeleted: true,
-        deletedAt: new Date(),
-        deletedByUserId,
-      },
       include: {
         items: { include: { menuItem: true } },
         table: true,
@@ -553,6 +544,17 @@ class OrdersService {
         openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
       },
     });
+    if (!existing) return null;
+    if (existing.isDeleted) return existing;
+
+    await prisma.$transaction([
+      prisma.orderPromotion.deleteMany({ where: { orderId: id } }),
+      prisma.payment.deleteMany({ where: { orderId: id } }),
+      prisma.orderItem.deleteMany({ where: { orderId: id } }),
+      prisma.order.delete({ where: { id } }),
+    ]);
+
+    return existing;
   }
 
 }

@@ -324,6 +324,95 @@ export default function ManagerSettingsPage() {
     }));
   }
 
+  function addMainSoupRules() {
+    const now = Date.now();
+    const menuCategories = (menuData || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      items: c.items || [],
+    }));
+    const menuItems = menuCategories.flatMap((c) =>
+      (c.items || []).map((i) => ({ ...i, categoryId: c.id }))
+    );
+
+    const soupCategory =
+      menuCategories.find((c) => String(c.name || "").toLowerCase().includes("soup")) ||
+      menuCategories.find((c) => String(c.name || "").toLowerCase().includes("shle")) ||
+      menuCategories.find((c) => String(c.name || "").includes("شله"));
+
+    const targets = [
+      "Chicken Qozi",
+      "Lamb Kawrma",
+      "Lamb Qozi",
+      "Mixed Qozi",
+      "Organic Chicken",
+      "Special Qozi",
+    ];
+
+    if (!soupCategory) {
+      setMessage("Soup category not found. Please check your menu categories.");
+      return;
+    }
+
+    const missing = targets.filter(
+      (name) =>
+        !menuItems.find(
+          (i) => String(i.name || "").toLowerCase() === name.toLowerCase()
+        )
+    );
+    if (missing.length) {
+      setMessage(`Missing items in menu: ${missing.join(", ")}`);
+      return;
+    }
+
+    const rulesToAdd = targets.map((name, idx) => {
+      const itemId = menuItems.find(
+        (i) => String(i.name || "").toLowerCase() === name.toLowerCase()
+      )?.id;
+      return {
+        id: `rule-${now + 100 + idx}`,
+        name: `${name} → 1 soup free`,
+        enabled: true,
+        priority: 60 + idx,
+        applyMode: "stack",
+        conditions: {
+          match: "all",
+          items: [
+            {
+              kind: "item",
+              id: itemId,
+              minQty: 1,
+            },
+          ],
+        },
+        actions: {
+          freeItems: [
+            {
+              kind: "category",
+              id: soupCategory.id,
+              freeQty: 1,
+              perMatchedItem: true,
+            },
+          ],
+          discounts: [],
+          addItems: [],
+          print: {
+            kitchen: {
+              groupByGuest: true,
+              guestSeparator: true,
+              itemLabelOverrides: [],
+            },
+          },
+        },
+      };
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      rules: [...(prev.rules || []), ...rulesToAdd],
+    }));
+  }
+
   function removeRule(index) {
     setForm((prev) => ({
       ...prev,
@@ -1087,6 +1176,13 @@ export default function ManagerSettingsPage() {
                       className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
                     >
                       Add platter soup rules
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addMainSoupRules}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
+                    >
+                      Add main soup rules
                     </button>
                     <button
                       type="button"

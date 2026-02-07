@@ -237,6 +237,43 @@ export default function ManagerSettingsPage() {
 
   function addPlatterSoupRules() {
     const now = Date.now();
+    const menuCategories = (menuData || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      items: c.items || [],
+    }));
+    const menuItems = menuCategories.flatMap((c) =>
+      (c.items || []).map((i) => ({ ...i, categoryId: c.id }))
+    );
+
+    const soupCategory =
+      menuCategories.find((c) => String(c.name || "").toLowerCase().includes("soup")) ||
+      menuCategories.find((c) => String(c.name || "").toLowerCase().includes("shle")) ||
+      menuCategories.find((c) => String(c.name || "").includes("شله"));
+
+    const getItemId = (name) =>
+      menuItems.find((i) => String(i.name || "").toLowerCase() === name.toLowerCase())?.id;
+
+    const targets = [
+      { name: "Platter for One", qty: 1 },
+      { name: "Sharing Platter for Two", qty: 2 },
+      { name: "Sharing Platter for Four", qty: 4 },
+      { name: "Sharing Platter for Six", qty: 6 },
+    ];
+
+    if (!soupCategory) {
+      setMessage("Soup category not found. Please check your menu categories.");
+      return;
+    }
+
+    const missing = targets.filter((t) => !getItemId(t.name));
+    if (missing.length) {
+      setMessage(
+        `Missing items in menu: ${missing.map((m) => m.name).join(", ")}`
+      );
+      return;
+    }
+
     const makeRule = (name, qty, offset) => ({
       id: `rule-${now + offset}`,
       name: `${name} → ${qty} soup free`,
@@ -247,22 +284,19 @@ export default function ManagerSettingsPage() {
         match: "all",
         items: [
           {
-            type: "item",
-            mode: "include",
-            field: "name",
-            op: "equals",
-            value: name,
+            kind: "item",
+            id: getItemId(name),
+            minQty: 1,
           },
         ],
       },
       actions: {
         freeItems: [
           {
-            type: "category",
-            categoryName: "Soup",
-            quantity: qty,
-            per: "order",
-            max: qty,
+            kind: "category",
+            id: soupCategory.id,
+            freeQty: qty,
+            perMatchedItem: false,
           },
         ],
         discounts: [],

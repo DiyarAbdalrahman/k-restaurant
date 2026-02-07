@@ -235,6 +235,61 @@ export default function ManagerSettingsPage() {
     setForm((prev) => ({ ...prev, rules: [...(prev.rules || []), base] }));
   }
 
+  function addPlatterSoupRules() {
+    const now = Date.now();
+    const makeRule = (name, qty, offset) => ({
+      id: `rule-${now + offset}`,
+      name: `${name} → ${qty} soup free`,
+      enabled: true,
+      priority: 50 + offset,
+      applyMode: "stack",
+      conditions: {
+        match: "all",
+        items: [
+          {
+            type: "item",
+            mode: "include",
+            field: "name",
+            op: "equals",
+            value: name,
+          },
+        ],
+      },
+      actions: {
+        freeItems: [
+          {
+            type: "category",
+            categoryName: "Soup",
+            quantity: qty,
+            per: "order",
+            max: qty,
+          },
+        ],
+        discounts: [],
+        addItems: [],
+        print: {
+          kitchen: {
+            groupByGuest: true,
+            guestSeparator: true,
+            itemLabelOverrides: [],
+          },
+        },
+      },
+    });
+
+    const preset = [
+      makeRule("Platter for One", 1, 1),
+      makeRule("Sharing Platter for Two", 2, 2),
+      makeRule("Sharing Platter for Four", 4, 3),
+      makeRule("Sharing Platter for Six", 6, 4),
+    ];
+
+    setForm((prev) => ({
+      ...prev,
+      rules: [...(prev.rules || []), ...preset],
+    }));
+  }
+
   function removeRule(index) {
     setForm((prev) => ({
       ...prev,
@@ -991,13 +1046,22 @@ export default function ManagerSettingsPage() {
                       Create flexible pricing and printing rules.
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={addRule}
-                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
-                  >
-                    Add Rule
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={addPlatterSoupRules}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
+                    >
+                      Add platter soup rules
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addRule}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
+                    >
+                      Add Rule
+                    </button>
+                  </div>
                 </div>
 
                 {rules.length === 0 ? (

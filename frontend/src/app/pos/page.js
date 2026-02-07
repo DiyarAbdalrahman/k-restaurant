@@ -124,7 +124,11 @@ export default function PosPage() {
     const safeService = Number(serviceChargePercent) || 0;
     const safeTax = Number(taxPercent) || 0;
 
-    const subtotal = cart.reduce((sum, item) => sum + item.qty * item.basePrice, 0);
+    const subtotal = cart.reduce((sum, item) => {
+      const base = Number(item.basePrice || 0);
+      const effective = isSoupItem(item) && cartHasNonSoup ? 0 : base;
+      return sum + item.qty * effective;
+    }, 0);
 
     let discountAmount = 0;
     if (discountType === "percent") discountAmount = (subtotal * safeDiscount) / 100;
@@ -135,7 +139,7 @@ export default function PosPage() {
     const total = subtotal - discountAmount + serviceCharge + taxAmount;
 
     return { subtotal, discountAmount, serviceCharge, taxAmount, total };
-  }, [cart, discountType, discountValue, serviceChargePercent, taxPercent]);
+  }, [cart, discountType, discountValue, serviceChargePercent, taxPercent, cartHasNonSoup]);
 
   // Checkout totals:
   // - If selectedOrder exists: show server totals and payments (REAL POS flow)
@@ -251,6 +255,22 @@ export default function PosPage() {
     }
     return map;
   }, [menu]);
+
+  const categoryNameById = useMemo(() => {
+    return new Map((menu || []).map((c) => [c.id, c.name]));
+  }, [menu]);
+
+  function isSoupItem(item) {
+    const catName =
+      categoryNameById.get(item.categoryId) ||
+      item.category?.name ||
+      "";
+    return String(catName).trim().toLowerCase() === "soup";
+  }
+
+  const cartHasNonSoup = useMemo(() => {
+    return cart.some((item) => !isSoupItem(item));
+  }, [cart, categoryNameById]);
 
   const favoriteItems = useMemo(() => {
     return favorites.map((id) => allItemsById.get(id)).filter(Boolean);
@@ -2253,9 +2273,9 @@ export default function PosPage() {
                             <div className="font-semibold text-sm truncate">{item.name}</div>
                             <div className="text-xs text-white/60">Guest {Number(item.guest || 1)}</div>
                             <div className="text-xs text-white/60">
-                              £{Number(item.basePrice || 0).toFixed(2)} × {item.qty} ={" "}
+                              £{Number(isSoupItem(item) && cartHasNonSoup ? 0 : item.basePrice || 0).toFixed(2)} × {item.qty} ={" "}
                               <span className="text-white">
-                                £{Number(item.qty * (item.basePrice || 0)).toFixed(2)}
+                                £{Number(item.qty * (isSoupItem(item) && cartHasNonSoup ? 0 : item.basePrice || 0)).toFixed(2)}
                               </span>
                             </div>
                           </div>

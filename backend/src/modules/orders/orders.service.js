@@ -76,8 +76,31 @@ class OrdersService {
       return false;
     };
 
+    const QUALIFYING_SOUP_FREE_ITEMS = [
+      "Chicken Qozi",
+      "Lamb Kawrma",
+      "Lamb Qozi",
+      "Mixed Qozi",
+      "Organic Chichekn",
+      "Special Qozi",
+    ];
+
+    const qualifyingSet = new Set(
+      QUALIFYING_SOUP_FREE_ITEMS.map((n) => String(n || "").trim().toLowerCase())
+    );
+
     const isSoup = (menuItem) => isSoupCategoryName(menuItem?.category?.name);
-    const hasNonSoup = itemsWithMenu.some(({ menuItem }) => !isSoup(menuItem));
+    const isQualifyingItem = (menuItem) =>
+      qualifyingSet.has(String(menuItem?.name || "").trim().toLowerCase());
+
+    let qualifyingCount = 0;
+    for (const { item, menuItem } of itemsWithMenu) {
+      if (isQualifyingItem(menuItem)) {
+        qualifyingCount += Number(item.quantity || 0);
+      }
+    }
+
+    let remainingFreeSoups = Math.max(0, qualifyingCount);
 
     const itemsData = itemsWithMenu.map(({ item, menuItem }) => {
       const qty = Number(item.quantity || 0);
@@ -85,9 +108,11 @@ class OrdersService {
       let unitPrice = base;
       let totalPrice = base * qty;
 
-      if (isSoup(menuItem) && hasNonSoup && qty > 0) {
-        unitPrice = 0;
-        totalPrice = 0;
+      if (isSoup(menuItem) && qty > 0 && remainingFreeSoups > 0) {
+        const freeQty = Math.min(qty, remainingFreeSoups);
+        remainingFreeSoups -= freeQty;
+        totalPrice = base * Math.max(0, qty - freeQty);
+        if (freeQty >= qty) unitPrice = 0;
       }
 
       return {

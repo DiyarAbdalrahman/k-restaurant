@@ -132,6 +132,27 @@ export default function PosPage() {
     return false;
   }
 
+  const QUALIFYING_SOUP_FREE_ITEMS = [
+    "Chicken Qozi",
+    "Lamb Kawrma",
+    "Lamb Qozi",
+    "Mixed Qozi",
+    "Organic Chichekn",
+    "Special Qozi",
+  ];
+
+  const qualifyingSoupFreeSet = useMemo(() => {
+    return new Set(
+      QUALIFYING_SOUP_FREE_ITEMS.map((n) => String(n || "").trim().toLowerCase())
+    );
+  }, []);
+
+  function isQualifyingSoupFreeItem(item) {
+    const name = String(item?.name || item?.menuItem?.name || "").trim().toLowerCase();
+    if (!name) return false;
+    return qualifyingSoupFreeSet.has(name);
+  }
+
   function isSoupItem(item) {
     const catName =
       categoryNameById.get(item.categoryId) ||
@@ -140,19 +161,38 @@ export default function PosPage() {
     return isSoupCategoryName(catName);
   }
 
-  const cartHasNonSoup = useMemo(() => {
-    return cart.some((item) => !isSoupItem(item));
-  }, [cart, categoryNameById]);
+  const soupFreeAllocation = useMemo(() => {
+    const qualifyingCount = cart.reduce((sum, item) => {
+      if (isQualifyingSoupFreeItem(item)) return sum + Number(item.qty || 0);
+      return sum;
+    }, 0);
+
+    let remainingFree = qualifyingCount;
+    const allocation = new Map();
+    cart.forEach((item, idx) => {
+      if (!isSoupItem(item)) return;
+      const qty = Number(item.qty || 0);
+      const freeQty = Math.max(0, Math.min(qty, remainingFree));
+      if (freeQty > 0) {
+        allocation.set(idx, freeQty);
+        remainingFree -= freeQty;
+      }
+    });
+
+    return { allocation, qualifyingCount };
+  }, [cart, categoryNameById, qualifyingSoupFreeSet]);
 
   const cartTotals = useMemo(() => {
     const safeDiscount = Number(discountValue) || 0;
     const safeService = Number(serviceChargePercent) || 0;
     const safeTax = Number(taxPercent) || 0;
 
-    const subtotal = cart.reduce((sum, item) => {
+    const subtotal = cart.reduce((sum, item, idx) => {
       const base = Number(item.basePrice || 0);
-      const effective = isSoupItem(item) && cartHasNonSoup ? 0 : base;
-      return sum + item.qty * effective;
+      const freeQty = soupFreeAllocation.allocation.get(idx) || 0;
+      const qty = Number(item.qty || 0);
+      const chargedQty = Math.max(0, qty - freeQty);
+      return sum + chargedQty * base;
     }, 0);
 
     let discountAmount = 0;
@@ -164,7 +204,7 @@ export default function PosPage() {
     const total = subtotal - discountAmount + serviceCharge + taxAmount;
 
     return { subtotal, discountAmount, serviceCharge, taxAmount, total };
-  }, [cart, discountType, discountValue, serviceChargePercent, taxPercent, cartHasNonSoup]);
+  }, [cart, discountType, discountValue, serviceChargePercent, taxPercent, soupFreeAllocation]);
 
   // Checkout totals:
   // - If selectedOrder exists: show server totals and payments (REAL POS flow)
@@ -2272,84 +2312,98 @@ export default function PosPage() {
                         </div>
                       </div>
                     )}
-                    {cart.map((item, index) => (
-                      <div
-                        key={index}
-                        className={["rounded-2xl border border-white/10 bg-black/20", compactMode ? "p-2.5" : "p-3"].join(" ")}
-                      >
-                        <div className="flex justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-sm truncate">{item.name}</div>
-                            <div className="text-xs text-white/60">Guest {Number(item.guest || 1)}</div>
-                            <div className="text-xs text-white/60">
-                              £{Number(isSoupItem(item) && cartHasNonSoup ? 0 : item.basePrice || 0).toFixed(2)} × {item.qty} ={" "}
-                              <span className="text-white">
-                                £{Number(item.qty * (isSoupItem(item) && cartHasNonSoup ? 0 : item.basePrice || 0)).toFixed(2)}
-                              </span>
+                    {cart.map((item, index) => {
+                      const base = Number(item.basePrice || 0);
+                      const qty = Number(item.qty || 0);
+                      const freeQty = soupFreeAllocation.allocation.get(index) || 0;
+                      const chargedQty = Math.max(0, qty - freeQty);
+                      const lineTotal = chargedQty * base;
+                      const unitDisplay = freeQty >= qty ? 0 : base;
+
+                      return (
+                        <div
+                          key={index}
+                          className={[
+                            "rounded-2xl border border-white/10 bg-black/20",
+                            compactMode ? "p-2.5" : "p-3",
+                          ].join(" ")}
+                        >
+                          <div className="flex justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-sm truncate">{item.name}</div>
+                              <div className="text-xs text-white/60">
+                                Guest {Number(item.guest || 1)}
+                              </div>
+                              <div className="text-xs text-white/60">
+                                £{Number(unitDisplay).toFixed(2)} × {item.qty} ={" "}
+                                <span className="text-white">
+                                  £{Number(lineTotal).toFixed(2)}
+                                </span>
+                              </div>
                             </div>
+
+                            <button
+                              onClick={async () => {
+                                const ok = await askConfirm({
+                                  title: "Remove item",
+                                  body: "Remove this item from the cart?",
+                                  confirmText: "Remove",
+                                });
+                                if (!ok) return;
+                                setCart((prev) => prev.filter((_, i) => i !== index));
+                              }}
+                              className={[
+                                "text-xs rounded-xl bg-red-600/20 border border-red-600/30 hover:bg-red-600/30 active:scale-[0.98] transition",
+                                compactMode ? "px-2.5 py-1.5" : "px-3 py-2",
+                              ].join(" ")}
+                              type="button"
+                            >
+                              Remove
+                            </button>
                           </div>
 
-                          <button
-                            onClick={async () => {
-                              const ok = await askConfirm({
-                                title: "Remove item",
-                                body: "Remove this item from the cart?",
-                                confirmText: "Remove",
-                              });
-                              if (!ok) return;
-                              setCart((prev) => prev.filter((_, i) => i !== index));
-                            }}
-                            className={[
-                              "text-xs rounded-xl bg-red-600/20 border border-red-600/30 hover:bg-red-600/30 active:scale-[0.98] transition",
-                              compactMode ? "px-2.5 py-1.5" : "px-3 py-2",
-                            ].join(" ")}
-                            type="button"
-                          >
-                            Remove
-                          </button>
-                        </div>
+                          <div className="mt-3">
+                            <div className="text-xs text-white/60">Quantity</div>
+                            <div className="text-sm font-semibold">{item.qty}</div>
+                          </div>
 
-                        <div className="mt-3">
-                          <div className="text-xs text-white/60">Quantity</div>
-                          <div className="text-sm font-semibold">{item.qty}</div>
-                        </div>
+                          <div className="mt-3">
+                            <div className="text-xs text-white/60">Guest</div>
+                            <select
+                              value={Number(item.guest || 1)}
+                              onChange={(e) =>
+                                setCart((prev) =>
+                                  prev.map((c, i) =>
+                                    i === index ? { ...c, guest: Number(e.target.value) } : c
+                                  )
+                                )
+                              }
+                              className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none"
+                            >
+                              {Array.from({ length: maxGuests }, (_, i) => i + 1).map((g) => (
+                                <option key={g} value={g}>
+                                  Guest {g}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
-                        <div className="mt-3">
-                          <div className="text-xs text-white/60">Guest</div>
-                          <select
-                            value={Number(item.guest || 1)}
+                          <input
+                            type="text"
+                            value={item.note}
                             onChange={(e) =>
                               setCart((prev) =>
                                 prev.map((c, i) =>
-                                  i === index ? { ...c, guest: Number(e.target.value) } : c
+                                  i === index ? { ...c, note: e.target.value } : c
                                 )
                               )
                             }
-                            className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none"
-                          >
-                            {Array.from({ length: maxGuests }, (_, i) => i + 1).map((g) => (
-                              <option key={g} value={g}>
-                                Guest {g}
-                              </option>
-                            ))}
-                          </select>
+                            placeholder="Notes (e.g., no onion)"
+                            className="mt-3 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none focus:border-red-500/60"
+                          />
                         </div>
-
-                        <input
-                          type="text"
-                          value={item.note}
-                          onChange={(e) =>
-                            setCart((prev) =>
-                              prev.map((c, i) =>
-                                i === index ? { ...c, note: e.target.value } : c
-                              )
-                            )
-                          }
-                          placeholder="Notes (e.g., no onion)"
-                          className="mt-3 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs outline-none focus:border-red-500/60"
-                        />
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>

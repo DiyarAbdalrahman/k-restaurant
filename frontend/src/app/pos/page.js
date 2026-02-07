@@ -25,6 +25,7 @@ export default function PosPage() {
 
   const [selectedTableId, setSelectedTableId] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [addOrder, setAddOrder] = useState(null);
   const [showRight, setShowRight] = useState(false);
 
   const [cart, setCart] = useState([]);
@@ -34,6 +35,8 @@ export default function PosPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [isAddingItems, setIsAddingItems] = useState(false);
+  const [addSendToKitchen, setAddSendToKitchen] = useState(true);
 
   // Payment
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -1068,6 +1071,42 @@ export default function PosPage() {
   }
 
   // -----------------------------
+  // Add items to existing order
+  // -----------------------------
+  async function addItemsToOrder() {
+    if (!addOrder) return;
+    if (cart.length === 0) {
+      toast.error("Cart is empty");
+      return;
+    }
+
+    try {
+      setIsAddingItems(true);
+      const body = {
+        items: cart.map((c) => ({
+          menuItemId: c.id,
+          quantity: c.qty,
+          notes: c.note || "",
+          guest: Number(c.guest) || 1,
+        })),
+        sendToKitchen: addSendToKitchen,
+      };
+      const res = await api.post(`/orders/${addOrder.id}/add-items`, body);
+      toast.success("Items added to order");
+      setCart([]);
+      setSelectedPromos([]);
+      setAddOrder(null);
+      setSelectedOrder(res.data || null);
+      await loadOrders();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add items");
+    } finally {
+      setIsAddingItems(false);
+    }
+  }
+
+  // -----------------------------
   // Send to kitchen
   // -----------------------------
   async function sendToKitchen() {
@@ -1857,20 +1896,20 @@ export default function PosPage() {
                       ].join(" ")}
                       type="button"
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm">
-                              #{String(order.id).slice(0, 6)}
+                            <span className="text-base font-bold text-white">
+                              {order.type === "dine_in"
+                                ? `Table ${order.table?.name || "?"}`
+                                : "Takeaway"}
                             </span>
                             <span className="text-[10px] uppercase tracking-wide text-white/50">
                               {order.type}
                             </span>
                           </div>
-                          <div className="text-[11px] text-white/70 mt-0.5">
-                            {order.type === "dine_in"
-                              ? `Table: ${order.table?.name || "?"}`
-                              : "Takeaway"}
+                          <div className="text-[11px] text-white/60 mt-0.5">
+                            Order #{String(order.id).slice(0, 6)}
                           </div>
                         </div>
 
@@ -1886,8 +1925,8 @@ export default function PosPage() {
 
                       <div
                         className={[
-                          "mt-2 space-y-1 text-[11px] text-white/70",
-                          compactMode ? "max-h-16" : "max-h-24",
+                          "mt-2 space-y-1 text-[11px] text-white/80",
+                          compactMode ? "max-h-28" : "max-h-40",
                           "overflow-y-auto pr-1",
                         ].join(" ")}
                       >
@@ -1895,7 +1934,7 @@ export default function PosPage() {
                           <div key={`${it.id || idx}`} className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <span className="font-semibold text-white/80">{it.quantity}×</span>{" "}
-                              <span className="truncate inline-block max-w-full">
+                              <span className="inline-block max-w-full whitespace-normal break-words">
                                 {it.menuItem?.name || "Item"}
                               </span>
                             </div>
@@ -1920,6 +1959,41 @@ export default function PosPage() {
                             by {order.openedByUser.fullName || order.openedByUser.username}
                           </span>
                         )}
+                      </div>
+
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (selectedOrder && !(await confirmLeaveUnpaid())) return;
+                            setSelectedOrder(null);
+                            setAddOrder(order);
+                            setCart([]);
+                            setSelectedPromos([]);
+                            setSelectedTableId(order?.table?.id || order?.tableId || null);
+                            setShowRight(true);
+                            setAddSendToKitchen(true);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
+                        >
+                          Add items
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!(await confirmLeaveUnpaid())) return;
+                            setSelectedOrder(order);
+                            if (settings?.posAutoOpenCheckout !== false) {
+                              setShowRight(true);
+                            }
+                            setSelectedTableId(order?.table?.id || order?.tableId || null);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
+                        >
+                          Checkout
+                        </button>
                       </div>
                     </button>
                   );
@@ -2197,14 +2271,14 @@ export default function PosPage() {
         </main>
 
         {/* RIGHT: cart + checkout */}
-        {(panelLocked || showRight || cart.length > 0 || selectedOrder) && (
+        {(panelLocked || showRight || cart.length > 0 || selectedOrder || addOrder) && (
           <aside className="order-2 xl:order-none col-span-12 xl:col-span-3 rounded-2xl border border-white/10 bg-white/5 overflow-hidden flex flex-col min-w-0">
           {/* CART HEADER */}
           <div className={["border-b border-white/10 bg-black/10", compactMode ? "p-3" : "p-4"].join(" ")}>
             <div className="flex items-center justify-between">
               <div>
                 <div className={["font-semibold", compactMode ? "text-xs" : "text-sm"].join(" ")}>
-                  {selectedOrder ? "Checkout" : "Cart"}
+                  {selectedOrder ? "Checkout" : addOrder ? "Add Items" : "Cart"}
                 </div>
                 <div className="text-xs text-white/60">
                   {selectedOrder ? (
@@ -2214,13 +2288,20 @@ export default function PosPage() {
                         ? `Table: ${selectedOrder.table.name}`
                         : selectedOrder.type}
                     </>
+                  ) : addOrder ? (
+                    <>
+                      Order #{String(addOrder.id).slice(0, 6)} •{" "}
+                      {addOrder?.table?.name
+                        ? `Table: ${addOrder.table.name}`
+                        : addOrder.type}
+                    </>
                   ) : (
                     <>{headerOrderLabel}</>
                   )}
                 </div>
               </div>
 
-              {!selectedOrder ? (
+              {!selectedOrder && !addOrder ? (
                 <button
                   onClick={clearCart}
                   className={[
@@ -2234,8 +2315,13 @@ export default function PosPage() {
               ) : (
                 <button
                   onClick={async () => {
-                    if (!(await confirmLeaveUnpaid())) return;
-                    setSelectedOrder(null);
+                    if (selectedOrder) {
+                      if (!(await confirmLeaveUnpaid())) return;
+                      setSelectedOrder(null);
+                    } else {
+                      setAddOrder(null);
+                      setCart([]);
+                    }
                   }}
                   className={[
                     "rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 active:scale-[0.98] transition text-xs font-semibold",
@@ -2793,14 +2879,36 @@ export default function PosPage() {
             {/* When building a new order */}
             {!selectedOrder ? (
               <>
-                <button
-                  disabled={placingOrder || cart.length === 0}
-                  onClick={createOrder}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:bg-white/10 disabled:text-white/40 active:scale-[0.98] transition"
-                  type="button"
-                >
-                  {placingOrder ? "Creating..." : "Create Order (Auto-sent)"}
-                </button>
+                {addOrder ? (
+                  <div className="space-y-2">
+                    <button
+                      disabled={isAddingItems || cart.length === 0}
+                      onClick={addItemsToOrder}
+                      className="w-full rounded-2xl py-3 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/10 disabled:text-white/40 active:scale-[0.98] transition"
+                      type="button"
+                    >
+                      {isAddingItems ? "Adding..." : "Add Items to Order"}
+                    </button>
+                    <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+                      <span className="text-white/70">Send to kitchen</span>
+                      <input
+                        type="checkbox"
+                        checked={addSendToKitchen}
+                        onChange={(e) => setAddSendToKitchen(e.target.checked)}
+                        className={toggleInput}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <button
+                    disabled={placingOrder || cart.length === 0}
+                    onClick={createOrder}
+                    className="w-full rounded-2xl py-3 text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:bg-white/10 disabled:text-white/40 active:scale-[0.98] transition"
+                    type="button"
+                  >
+                    {placingOrder ? "Creating..." : "Create Order (Auto-sent)"}
+                  </button>
+                )}
 
                 {/* Adjustments (cart-only) */}
                 <section className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">

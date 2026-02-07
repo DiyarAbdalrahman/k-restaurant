@@ -49,6 +49,11 @@ const orderStatusSchema = z.object({
   ]),
 });
 
+const orderAddItemsSchema = z.object({
+  items: z.array(orderItemSchema).min(1),
+  sendToKitchen: z.boolean().optional().default(true),
+});
+
 const paymentSchema = z.object({
   amount: numFromString(z.number().min(0)),
   method: z.enum(["cash", "card"]),
@@ -208,6 +213,7 @@ const promotionSchema = z.object({
 module.exports = {
   orderCreateSchema,
   orderStatusSchema,
+  orderAddItemsSchema,
   paymentSchema,
   authLoginSchema,
   authRegisterSchema,

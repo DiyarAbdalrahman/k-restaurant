@@ -285,6 +285,185 @@ class OrdersService {
     return order;
   }
 
+  async addItems(orderId, { items, sendToKitchen = true, userId, role }) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, isDeleted: false },
+      include: {
+        items: { include: { menuItem: { include: { category: true } } } },
+        table: true,
+        payments: true,
+        openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
+      },
+    });
+    if (!order) return null;
+    if (order.status === "paid" || order.status === "cancelled") {
+      throw new Error("Cannot add items to a closed order.");
+    }
+
+    const settings = await prisma.settings.findFirst();
+    const rules = normalizeRules(settings?.rules);
+
+    const newItemsWithMenu = await Promise.all(
+      items.map(async (item) => {
+        const menuItem = await prisma.menuItem.findUnique({
+          where: { id: item.menuItemId },
+          include: { category: true },
+        });
+        if (!menuItem) throw new Error(`Menu item not found: ${item.menuItemId}`);
+        return { item, menuItem };
+      })
+    );
+
+    const combinedItems = [
+      ...order.items.map((it) => ({
+        item: {
+          menuItemId: it.menuItemId,
+          quantity: it.quantity,
+          notes: it.notes || "",
+          guest: Number(it.guest) || 1,
+          _existingId: it.id,
+        },
+        menuItem: it.menuItem,
+      })),
+      ...newItemsWithMenu.map(({ item, menuItem }) => ({
+        item: {
+          menuItemId: item.menuItemId,
+          quantity: Number(item.quantity || 0),
+          notes: item.notes || "",
+          guest: Number(item.guest) || 1,
+          _existingId: null,
+        },
+        menuItem,
+      })),
+    ];
+
+    let itemsData = combinedItems.map(({ item, menuItem }) => {
+      const qty = Number(item.quantity || 0);
+      const base = Number(menuItem.basePrice || 0);
+      return {
+        menuItemId: item.menuItemId,
+        quantity: qty,
+        notes: item.notes || "",
+        guest: Number(item.guest) || 1,
+        unitPrice: base,
+        totalPrice: base * qty,
+        _existingId: item._existingId || null,
+      };
+    });
+
+    if (rules.length > 0) {
+      const ctx = {
+        items: combinedItems.map((x) => ({
+          ...x.item,
+          menuItem: x.menuItem,
+        })),
+        orderType: order.type,
+        role: role || "pos",
+        tableId: order.table?.id || null,
+        now: new Date(),
+      };
+      const pricing = await applyPricingRules({
+        itemsWithMenu: combinedItems,
+        itemsData,
+        rules,
+        ctx,
+      });
+      itemsData = pricing.itemsData.map((x, idx) => ({
+        ...x,
+        _existingId: itemsData[idx]?._existingId || null,
+      }));
+    }
+
+    const subtotal = itemsData.reduce((sum, it) => sum + Number(it.totalPrice || 0), 0);
+    let discountAmount = Number(order.discountAmount) || 0;
+    if (discountAmount < 0) discountAmount = 0;
+    if (discountAmount > subtotal) discountAmount = subtotal;
+    const servicePercent = Number(settings?.defaultServiceChargePercent || 0);
+    const taxPercent = Number(settings?.defaultTaxPercent || 0);
+    const serviceCharge = (subtotal - discountAmount) * (servicePercent / 100);
+    const taxAmount = (subtotal - discountAmount + serviceCharge) * (taxPercent / 100);
+    const total = subtotal - discountAmount + serviceCharge + taxAmount;
+
+    const existingUpdates = itemsData.filter((x) => x._existingId);
+    const newLines = itemsData.filter((x) => !x._existingId);
+
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      for (const line of existingUpdates) {
+        await tx.orderItem.update({
+          where: { id: line._existingId },
+          data: {
+            unitPrice: Number(line.unitPrice || 0),
+            totalPrice: Number(line.totalPrice || 0),
+          },
+        });
+      }
+
+      if (newLines.length > 0) {
+        await tx.orderItem.createMany({
+          data: newLines.map((line) => ({
+            orderId: order.id,
+            menuItemId: line.menuItemId,
+            quantity: Number(line.quantity || 0),
+            unitPrice: Number(line.unitPrice || 0),
+            totalPrice: Number(line.totalPrice || 0),
+            notes: line.notes || "",
+            guest: Number(line.guest) || 1,
+          })),
+        });
+      }
+
+      return tx.order.update({
+        where: { id: order.id },
+        data: {
+          subtotal,
+          discountAmount,
+          serviceCharge,
+          taxAmount,
+          total,
+          status: order.status === "open" ? "sent_to_kitchen" : order.status,
+        },
+        include: {
+          items: { include: { menuItem: true } },
+          table: true,
+          payments: true,
+          openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
+        },
+      });
+    });
+
+    if (sendToKitchen && newLines.length > 0) {
+      const newItemsOnly = newLines.map((line) => {
+        const found = combinedItems.find(
+          (x) => x.item.menuItemId === line.menuItemId && !x.item._existingId
+        );
+        return {
+          menuItemId: line.menuItemId,
+          quantity: line.quantity,
+          notes: line.notes,
+          guest: line.guest,
+          menuItem: found?.menuItem,
+        };
+      });
+
+      const printOrder = {
+        ...updatedOrder,
+        items: newItemsOnly,
+      };
+
+      const ctx = {
+        items: updatedOrder.items || [],
+        orderType: updatedOrder.type,
+        role: role || "pos",
+        tableId: updatedOrder.table?.id || null,
+        now: new Date(),
+      };
+      const { kitchenOverrides } = applyPrintRules(updatedOrder, settings, rules, ctx);
+      await printKitchenTicket(printOrder, kitchenOverrides);
+    }
+
+    return updatedOrder;
+  }
+
   // UPDATE STATUS (KITCHEN / POS)
   async updateStatus(id, status) {
   const allowedStatuses = [

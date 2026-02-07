@@ -6,7 +6,7 @@ const {
   requireRole,
 } = require("../../middleware/auth.middleware");
 const { validateBody } = require("../../middleware/validate.middleware");
-const { orderCreateSchema, orderStatusSchema } = require("../../validation/schemas");
+const { orderCreateSchema, orderStatusSchema, orderAddItemsSchema } = require("../../validation/schemas");
 
 const ordersRouter = Router();
 
@@ -27,6 +27,14 @@ ordersRouter.get(
 // CREATE order
 ordersRouter.post("/", validateBody(orderCreateSchema), (req, res, next) =>
   ordersController.create(req, res, next)
+);
+
+// ADD ITEMS to existing open order
+ordersRouter.post(
+  "/:id/add-items",
+  requireRole("waiter", "admin", "pos"),
+  validateBody(orderAddItemsSchema),
+  (req, res, next) => ordersController.addItems(req, res, next)
 );
 
 // Lookup by ID prefix

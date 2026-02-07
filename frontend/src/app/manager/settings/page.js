@@ -365,51 +365,50 @@ export default function ManagerSettingsPage() {
       return;
     }
 
-    const rulesToAdd = targets.map((name, idx) => {
-      const itemId = menuItems.find(
-        (i) => String(i.name || "").toLowerCase() === name.toLowerCase()
-      )?.id;
-      return {
-        id: `rule-${now + 100 + idx}`,
-        name: `${name} → 1 soup free`,
-        enabled: true,
-        priority: 60 + idx,
-        applyMode: "stack",
-        conditions: {
-          match: "all",
-          items: [
-            {
-              kind: "item",
-              id: itemId,
-              minQty: 1,
-            },
-          ],
-        },
-        actions: {
-          freeItems: [
-            {
-              kind: "category",
-              id: soupCategory.id,
-              freeQty: 1,
-              perMatchedItem: true,
-            },
-          ],
-          discounts: [],
-          addItems: [],
-          print: {
-            kitchen: {
-              groupByGuest: true,
-              guestSeparator: true,
-              itemLabelOverrides: [],
+    setForm((prev) => ({
+      ...prev,
+      rules: [
+        ...(prev.rules || []),
+        {
+          id: `rule-${now + 120}`,
+          name: "Main Qozi/Chicken → 1 soup free per item",
+          enabled: true,
+          priority: 60,
+          applyMode: "stack",
+          conditions: {
+            match: "any",
+            items: targets.map((name) => {
+              const itemId = menuItems.find(
+                (i) => String(i.name || "").toLowerCase() === name.toLowerCase()
+              )?.id;
+              return {
+                kind: "item",
+                id: itemId,
+                minQty: 1,
+              };
+            }),
+          },
+          actions: {
+            freeItems: [
+              {
+                kind: "category",
+                id: soupCategory.id,
+                freeQty: 1,
+                perMatchedItem: true,
+              },
+            ],
+            discounts: [],
+            addItems: [],
+            print: {
+              kitchen: {
+                groupByGuest: true,
+                guestSeparator: true,
+                itemLabelOverrides: [],
+              },
             },
           },
         },
-      };
-    });
-
-    setForm((prev) => ({
-      ...prev,
-      rules: [...(prev.rules || []), ...rulesToAdd],
+      ],
     }));
   }
 

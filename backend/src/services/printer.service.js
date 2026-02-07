@@ -31,7 +31,7 @@ function formatTime(dateString) {
  * Print kitchen ticket for an order
  * @param {Object} order - order including items + table
  */
-async function sendToPrinter(renderFn) {
+async function sendToPrinter(renderFn, encoding = "GB18030") {
   if (!bridgeUrl && (!printerEnabled || !printerIp)) {
     console.log("[printer] Disabled or no IP set. Skipping print.");
     return;
@@ -39,7 +39,7 @@ async function sendToPrinter(renderFn) {
 
   return new Promise((resolve, reject) => {
     try {
-      const options = { encoding: "GB18030" };
+      const options = { encoding };
 
       if (bridgeUrl) {
         const chunks = [];
@@ -133,7 +133,7 @@ async function printKitchenTicket(order) {
     printer.text("       ** KITCHEN **");
     printer.text("----------------------------");
     printer.newLine().cut();
-  });
+  }, "GB18030");
 }
 
 async function printCustomerReceipt(order, settings) {
@@ -163,6 +163,9 @@ async function printCustomerReceipt(order, settings) {
   const lastPayment = payments.filter((p) => p.kind !== "refund").slice(-1)[0];
 
   return sendToPrinter((printer) => {
+    // Use CP858 for better £ support on common ESC/POS printers
+    printer.codepage("CP858");
+    printer.encode("CP858");
     printer.align("CT").size(2, 2).text("RECEIPT").size(1, 1);
     if (show.brandName) printer.text(brand);
     if (header) printer.text(header);
@@ -210,7 +213,7 @@ async function printCustomerReceipt(order, settings) {
       printer.text(footer);
     }
     printer.newLine().cut();
-  });
+  }, "CP858");
 }
 
 module.exports = {

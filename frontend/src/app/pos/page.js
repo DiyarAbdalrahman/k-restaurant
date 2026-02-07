@@ -1477,7 +1477,7 @@ export default function PosPage() {
 
   async function confirmLeaveUnpaid() {
     if (!selectedOrder) return true;
-    if (checkoutTotals.remaining > 0.001) {
+    if (checkoutTotals.paid > 0.001 && checkoutTotals.remaining > 0.001) {
       return await askConfirm({
         title: "Unpaid balance",
         body: "This order still has a balance. Switch anyway?",

@@ -199,6 +199,36 @@ class OrdersService {
   return updated;
 }
 
+  // LIST HISTORY (admin/manager)
+  async listHistory({ from, to, q, status, limit = 200 }) {
+    const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const toDate = to ? new Date(to) : new Date();
+
+    const where = {
+      createdAt: { gte: fromDate, lte: toDate },
+    };
+
+    if (status && status !== "all") {
+      where.status = status;
+    }
+
+    if (q) {
+      where.id = { startsWith: q };
+    }
+
+    return prisma.order.findMany({
+      where,
+      include: {
+        items: { include: { menuItem: true } },
+        table: true,
+        payments: true,
+        openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(Number(limit) || 200, 500),
+    });
+  }
+
   // DELETE ORDER (admin only)
   async deleteOrder(id) {
     const existing = await prisma.order.findUnique({ where: { id } });

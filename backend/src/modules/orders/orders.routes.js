@@ -17,6 +17,13 @@ ordersRouter.get("/", (req, res, next) =>
   ordersController.listOpen(req, res, next)
 );
 
+// GET history (admin/manager)
+ordersRouter.get(
+  "/history",
+  requireRole("admin", "manager"),
+  (req, res, next) => ordersController.listHistory(req, res, next)
+);
+
 // CREATE order
 ordersRouter.post("/", validateBody(orderCreateSchema), (req, res, next) =>
   ordersController.create(req, res, next)

@@ -15,6 +15,22 @@ class OrdersController {
     }
   }
 
+  async listHistory(req, res, next) {
+    try {
+      const { from, to, q, status, limit } = req.query;
+      const orders = await ordersService.listHistory({
+        from,
+        to,
+        q: q ? String(q).trim().replace(/^#/, "") : "",
+        status,
+        limit,
+      });
+      res.json(orders);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async create(req, res, next) {
     try {
       const userId = req.user.id;

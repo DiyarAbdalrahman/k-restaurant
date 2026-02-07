@@ -141,6 +141,12 @@ export default function ManagerUsersPage() {
               Reports
             </a>
             <a
+              href="/manager/orders"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+            >
+              Orders
+            </a>
+            <a
               href="/manager/menu"
               className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
             >

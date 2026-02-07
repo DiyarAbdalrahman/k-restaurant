@@ -124,11 +124,11 @@ async function printKitchenTicket(order) {
     Array.from(groups.keys()).sort((a, b) => a - b).forEach((guest) => {
       printer.text(`Guest ${guest}`);
       groups.get(guest).forEach((item) => {
-        const name = item.menuItem?.name || "Item";
+        const name = normalizePrintText(item.menuItem?.name || "Item");
         const qty = item.quantity;
         printer.text(`  ${qty} x ${name}`);
         if (item.notes) {
-          printer.text(`   > ${item.notes}`);
+          printer.text(`   > ${normalizePrintText(item.notes)}`);
         }
       });
     });
@@ -149,6 +149,20 @@ function formatGBP(value) {
   const n = Number(value || 0);
   // Use ASCII-safe currency to avoid codepage issues on some printers
   return `GBP ${n.toFixed(2)}`;
+}
+
+function normalizePrintText(input) {
+  const text = String(input || "");
+  return text
+    .replace(/½/g, "1/2")
+    .replace(/¼/g, "1/4")
+    .replace(/¾/g, "3/4")
+    .replace(/⅓/g, "1/3")
+    .replace(/⅔/g, "2/3")
+    .replace(/⅛/g, "1/8")
+    .replace(/⅜/g, "3/8")
+    .replace(/⅝/g, "5/8")
+    .replace(/⅞/g, "7/8");
 }
 
 async function printCustomerReceipt(order, settings) {
@@ -196,12 +210,12 @@ async function printCustomerReceipt(order, settings) {
     if (show.items) {
       printer.drawLine();
       order.items.forEach((item) => {
-        const name = item.menuItem?.name || "Item";
+        const name = normalizePrintText(item.menuItem?.name || "Item");
         const qty = item.quantity;
         const amount = Number(item.totalPrice || item.unitPrice * item.quantity || 0).toFixed(2);
         printer.text(`${qty} x ${name}  ${formatGBP(amount)}`);
         if (show.itemNotes && item.notes) {
-          printer.text(`  > ${item.notes}`);
+          printer.text(`  > ${normalizePrintText(item.notes)}`);
         }
       });
     }

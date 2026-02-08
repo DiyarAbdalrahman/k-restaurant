@@ -146,33 +146,6 @@ export default function PosPage() {
     }, 0);
   }
 
-  const menuItemsFlat = useMemo(() => {
-    return (orderedMenu || []).flatMap((c) =>
-      (c.items || []).map((it) => ({
-        ...it,
-        categoryId: c.id,
-        categoryName: c.name,
-      }))
-    );
-  }, [orderedMenu]);
-
-  const menuItemById = useMemo(() => {
-    return new Map(menuItemsFlat.map((it) => [it.id, it]));
-  }, [menuItemsFlat]);
-
-  const categoryById = useMemo(() => {
-    return new Map((orderedMenu || []).map((c) => [c.id, c]));
-  }, [orderedMenu]);
-
-  function isSoupCategoryName(name) {
-    const n = String(name || "").trim().toLowerCase();
-    if (!n) return false;
-    if (n.includes("soup")) return true;
-    if (n.includes("shle")) return true;
-    if (n.includes("شله")) return true;
-    return false;
-  }
-
   const orderedMenu = useMemo(() => {
     const source = Array.isArray(menu) ? [...menu] : [];
     const byId = new Map(source.map((c) => [c.id, c]));
@@ -218,6 +191,33 @@ export default function PosPage() {
       .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
     return [...ordered, ...remaining];
   }, [menu, settings?.posCategoryOrder]);
+
+  const menuItemsFlat = useMemo(() => {
+    return (orderedMenu || []).flatMap((c) =>
+      (c.items || []).map((it) => ({
+        ...it,
+        categoryId: c.id,
+        categoryName: c.name,
+      }))
+    );
+  }, [orderedMenu]);
+
+  const menuItemById = useMemo(() => {
+    return new Map(menuItemsFlat.map((it) => [it.id, it]));
+  }, [menuItemsFlat]);
+
+  const categoryById = useMemo(() => {
+    return new Map((orderedMenu || []).map((c) => [c.id, c]));
+  }, [orderedMenu]);
+
+  function isSoupCategoryName(name) {
+    const n = String(name || "").trim().toLowerCase();
+    if (!n) return false;
+    if (n.includes("soup")) return true;
+    if (n.includes("shle")) return true;
+    if (n.includes("شله")) return true;
+    return false;
+  }
 
   const DEFAULT_SOUP_FREE_NAMES = [
     "Chicken Qozi",

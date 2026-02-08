@@ -68,6 +68,8 @@ export default function ManagerSettingsPage() {
     posShowRecent: true,
     posShowCategoryShortcuts: true,
     posShowDiscounts: true,
+    posShowServiceCharge: true,
+    posShowTax: true,
     posMenuCardSize: "md",
     paymentDefaultMethod: "cash",
     paymentAllowOverpay: false,
@@ -779,6 +781,28 @@ export default function ManagerSettingsPage() {
                       checked={form.posShowDiscounts}
                       onChange={(e) =>
                         setForm({ ...form, posShowDiscounts: e.target.checked })
+                      }
+                      className={toggleInput}
+                    />
+                  </label>
+                  <label className={toggleWrap}>
+                    <span className={toggleLabel}>Show service charge in POS</span>
+                    <input
+                      type="checkbox"
+                      checked={form.posShowServiceCharge}
+                      onChange={(e) =>
+                        setForm({ ...form, posShowServiceCharge: e.target.checked })
+                      }
+                      className={toggleInput}
+                    />
+                  </label>
+                  <label className={toggleWrap}>
+                    <span className={toggleLabel}>Show tax in POS</span>
+                    <input
+                      type="checkbox"
+                      checked={form.posShowTax}
+                      onChange={(e) =>
+                        setForm({ ...form, posShowTax: e.target.checked })
                       }
                       className={toggleInput}
                     />

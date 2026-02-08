@@ -15,6 +15,24 @@ export default function PosPage() {
   const panelLocked = settings?.posPanelAlwaysVisible === true;
   const defaultOrderType = settings?.posDefaultOrderType || "dine_in";
   const showPosDiscounts = settings?.posShowDiscounts !== false;
+  const showPosServiceCharge = settings?.posShowServiceCharge !== false;
+  const showPosTax = settings?.posShowTax !== false;
+  const discountColSpan =
+    !showPosServiceCharge && !showPosTax ? "col-span-12" : "col-span-6";
+  const serviceColSpan = showPosDiscounts
+    ? showPosTax
+      ? "col-span-3"
+      : "col-span-6"
+    : showPosTax
+    ? "col-span-6"
+    : "col-span-12";
+  const taxColSpan = showPosDiscounts
+    ? showPosServiceCharge
+      ? "col-span-3"
+      : "col-span-6"
+    : showPosServiceCharge
+    ? "col-span-6"
+    : "col-span-12";
   // -----------------------------
   // Core state
   // -----------------------------
@@ -434,7 +452,17 @@ export default function PosPage() {
   }, [menu, menuItemsFlat, defaultSoupFreeSet]);
 
   const configuredRules = useMemo(() => normalizeRules(settings?.rules), [settings?.rules]);
-  const effectiveRules = configuredRules.length > 0 ? configuredRules : defaultSoupRules;
+  const effectiveRules = useMemo(() => {
+    if (configuredRules.length === 0) return defaultSoupRules;
+    if (defaultSoupRules.length === 0) return configuredRules;
+    const soupCategoryId = defaultSoupRules[0]?.actions?.freeItems?.[0]?.id;
+    const hasSoupFree = configuredRules.some((rule) =>
+      (rule.actions?.freeItems || []).some(
+        (action) => action.kind === "category" && action.id === soupCategoryId
+      )
+    );
+    return hasSoupFree ? configuredRules : [...configuredRules, ...defaultSoupRules];
+  }, [configuredRules, defaultSoupRules]);
 
   const pricingState = useMemo(() => {
     const itemsData = cart.map((item, idx) => {
@@ -2371,11 +2399,15 @@ export default function PosPage() {
                         value={`-£${checkoutTotals.discountAmount.toFixed(2)}`}
                       />
                     ) : null}
-                    <Row
-                      label="Service"
-                      value={`£${checkoutTotals.serviceCharge.toFixed(2)}`}
-                    />
-                    <Row label="Tax" value={`£${checkoutTotals.taxAmount.toFixed(2)}`} />
+                    {showPosServiceCharge ? (
+                      <Row
+                        label="Service"
+                        value={`£${checkoutTotals.serviceCharge.toFixed(2)}`}
+                      />
+                    ) : null}
+                    {showPosTax ? (
+                      <Row label="Tax" value={`£${checkoutTotals.taxAmount.toFixed(2)}`} />
+                    ) : null}
                   </div>
 
                   <div className="pt-2 border-t border-white/10">
@@ -2964,7 +2996,7 @@ export default function PosPage() {
 
                   <div className="grid grid-cols-12 gap-2 items-center text-xs">
                     {showPosDiscounts ? (
-                      <div className="col-span-6">
+                      <div className={discountColSpan}>
                         <label className="block text-[11px] text-white/60 mb-1">Discount</label>
                         <div className="flex gap-2">
                           <select
@@ -2987,43 +3019,51 @@ export default function PosPage() {
                           />
                         </div>
                       </div>
-                    ) : (
-                      <div className="col-span-6" />
-                    )}
+                    ) : null}
 
-                    <div className="col-span-3">
-                      <label className="block text-[11px] text-white/60 mb-1">Service %</label>
-                      <input
-                        type="number"
-                        value={serviceChargePercent}
-                        onChange={(e) => setServiceChargePercent(Number(e.target.value))}
-                        className="w-full rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none focus:border-red-500/60"
-                        placeholder="0"
-                      />
-                    </div>
+                    {showPosServiceCharge ? (
+                      <div className={serviceColSpan}>
+                        <label className="block text-[11px] text-white/60 mb-1">Service %</label>
+                        <input
+                          type="number"
+                          value={serviceChargePercent}
+                          onChange={(e) => setServiceChargePercent(Number(e.target.value))}
+                          className="w-full rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none focus:border-red-500/60"
+                          placeholder="0"
+                        />
+                      </div>
+                    ) : null}
 
-                    <div className="col-span-3">
-                      <label className="block text-[11px] text-white/60 mb-1">Tax %</label>
-                      <input
-                        type="number"
-                        value={taxPercent}
-                        onChange={(e) => setTaxPercent(Number(e.target.value))}
-                        className="w-full rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none focus:border-red-500/60"
-                        placeholder="0"
-                      />
-                    </div>
+                    {showPosTax ? (
+                      <div className={taxColSpan}>
+                        <label className="block text-[11px] text-white/60 mb-1">Tax %</label>
+                        <input
+                          type="number"
+                          value={taxPercent}
+                          onChange={(e) => setTaxPercent(Number(e.target.value))}
+                          className="w-full rounded-xl bg-black/40 border border-white/10 px-2 py-2 text-xs outline-none focus:border-red-500/60"
+                          placeholder="0"
+                        />
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="pt-2 border-t border-white/10 space-y-1 text-xs text-white/70">
-                    <Row
-                      label="Discount"
-                      value={`-£${checkoutTotals.discountAmount.toFixed(2)}`}
-                    />
-                    <Row
-                      label="Service"
-                      value={`£${checkoutTotals.serviceCharge.toFixed(2)}`}
-                    />
-                    <Row label="Tax" value={`£${checkoutTotals.taxAmount.toFixed(2)}`} />
+                    {showPosDiscounts ? (
+                      <Row
+                        label="Discount"
+                        value={`-£${checkoutTotals.discountAmount.toFixed(2)}`}
+                      />
+                    ) : null}
+                    {showPosServiceCharge ? (
+                      <Row
+                        label="Service"
+                        value={`£${checkoutTotals.serviceCharge.toFixed(2)}`}
+                      />
+                    ) : null}
+                    {showPosTax ? (
+                      <Row label="Tax" value={`£${checkoutTotals.taxAmount.toFixed(2)}`} />
+                    ) : null}
                   </div>
                 </section>
 

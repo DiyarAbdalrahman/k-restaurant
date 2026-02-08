@@ -241,6 +241,8 @@ model Settings {
   posShowRecent             Boolean  @default(true)
   posShowCategoryShortcuts  Boolean  @default(true)
   posShowDiscounts          Boolean  @default(true)
+  posShowServiceCharge      Boolean  @default(true)
+  posShowTax                Boolean  @default(true)
   posMenuCardSize           String   @default("md")
   paymentDefaultMethod      String   @default("cash")
   paymentAllowOverpay       Boolean  @default(false)

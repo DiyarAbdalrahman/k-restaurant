@@ -123,47 +123,59 @@ class OrdersService {
     });
 
     let rules = normalizeRules(settings?.rules);
+    const qualifyingItemIds = itemsWithMenu
+      .filter(({ menuItem }) => defaultSoupFreeSet.has(normalizeName(menuItem?.name)))
+      .map(({ menuItem }) => menuItem.id);
+    const soupCategoryIds = Array.from(
+      new Set(
+        itemsWithMenu
+          .filter(({ menuItem }) => isSoup(menuItem))
+          .map(({ menuItem }) => menuItem.categoryId)
+          .filter(Boolean)
+      )
+    );
+
+    const soupCategoryId = soupCategoryIds[0];
+    const autoSoupRules =
+      qualifyingItemIds.length > 0 && soupCategoryId
+        ? [
+            {
+              name: "Default soup free rule",
+              enabled: true,
+              priority: 100,
+              applyMode: "stack",
+              conditions: {
+                match: "any",
+                items: qualifyingItemIds.map((id) => ({
+                  kind: "item",
+                  id,
+                  minQty: 1,
+                })),
+              },
+              actions: {
+                freeItems: [
+                  {
+                    kind: "category",
+                    id: soupCategoryId,
+                    freeQty: 1,
+                    perMatchedItem: true,
+                  },
+                ],
+              },
+            },
+          ]
+        : [];
+
     if (rules.length === 0) {
-      const qualifyingItemIds = itemsWithMenu
-        .filter(({ menuItem }) => defaultSoupFreeSet.has(normalizeName(menuItem?.name)))
-        .map(({ menuItem }) => menuItem.id);
-      const soupCategoryIds = Array.from(
-        new Set(
-          itemsWithMenu
-            .filter(({ menuItem }) => isSoup(menuItem))
-            .map(({ menuItem }) => menuItem.categoryId)
-            .filter(Boolean)
+      rules = autoSoupRules;
+    } else if (autoSoupRules.length > 0) {
+      const hasSoupFree = rules.some((rule) =>
+        (rule.actions?.freeItems || []).some(
+          (action) => action.kind === "category" && action.id === soupCategoryId
         )
       );
-
-      const soupCategoryId = soupCategoryIds[0];
-      if (qualifyingItemIds.length > 0 && soupCategoryId) {
-        rules = [
-          {
-            name: "Default soup free rule",
-            enabled: true,
-            priority: 100,
-            applyMode: "stack",
-            conditions: {
-              match: "any",
-              items: qualifyingItemIds.map((id) => ({
-                kind: "item",
-                id,
-                minQty: 1,
-              })),
-            },
-            actions: {
-              freeItems: [
-                {
-                  kind: "category",
-                  id: soupCategoryId,
-                  freeQty: 1,
-                  perMatchedItem: true,
-                },
-              ],
-            },
-          },
-        ];
+      if (!hasSoupFree) {
+        rules = normalizeRules([...rules, ...autoSoupRules]);
       }
     }
     if (rules.length > 0) {

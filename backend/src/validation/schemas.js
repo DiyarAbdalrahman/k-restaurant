@@ -193,6 +193,8 @@ const settingsUpdateSchema = z.object({
   posShowRecent: z.boolean().optional(),
   posShowCategoryShortcuts: z.boolean().optional(),
   posShowDiscounts: z.boolean().optional(),
+  posShowServiceCharge: z.boolean().optional(),
+  posShowTax: z.boolean().optional(),
   posMenuCardSize: z.string().optional(),
   kitchenSoundEnabled: z.boolean().optional(),
   kitchenLoudSound: z.boolean().optional(),

@@ -316,8 +316,8 @@ export default function ManagerReportsPage() {
   const [tab, setTab] = useState("overview"); // overview | items | staff | alerts
 
   // Range presets
-  const [preset, setPreset] = useState("month"); // today | week | month | year | custom
-  const [from, setFrom] = useState(isoDateOnly(addDays(startOfToday(), -30)));
+  const [preset, setPreset] = useState("today"); // today | week | month | year | custom
+  const [from, setFrom] = useState(isoDateOnly(startOfToday()));
   const [to, setTo] = useState(isoDateOnly(new Date()));
 
   // Filters
@@ -772,107 +772,108 @@ export default function ManagerReportsPage() {
 
         {/* FILTER BAR */}
         <div className="px-4 md:px-6 pb-3">
-          <div className="rounded-3xl bg-white/[0.04] border border-white/10 p-3 md:p-4">
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-2">
-            <Chip active={tab === "overview"} onClick={() => setTab("overview")}>
-              Overview
-            </Chip>
-            <Chip active={tab === "items"} onClick={() => setTab("items")}>
-              Items
-            </Chip>
-            <Chip active={tab === "staff"} onClick={() => setTab("staff")}>
-              Staff
-            </Chip>
-            <Chip active={tab === "alerts"} onClick={() => setTab("alerts")}>
-              Alerts
-            </Chip>
-          </div>
+          <div className="rounded-3xl bg-white/[0.04] border border-white/10 p-3 md:p-4 space-y-3">
+            {/* Tabs */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              <Chip active={tab === "overview"} onClick={() => setTab("overview")}>
+                Overview
+              </Chip>
+              <Chip active={tab === "items"} onClick={() => setTab("items")}>
+                Items
+              </Chip>
+              <Chip active={tab === "staff"} onClick={() => setTab("staff")}>
+                Staff
+              </Chip>
+              <Chip active={tab === "alerts"} onClick={() => setTab("alerts")}>
+                Alerts
+              </Chip>
+            </div>
 
-          {/* Range + Filters */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 mt-3">
             {/* Presets */}
-            <div className="lg:col-span-4 flex flex-wrap gap-2">
-              <Chip active={preset === "today"} onClick={() => setPreset("today")}>
-                Today
-              </Chip>
-              <Chip active={preset === "week"} onClick={() => setPreset("week")}>
-                7 Days
-              </Chip>
-              <Chip active={preset === "month"} onClick={() => setPreset("month")}>
-                30 Days
-              </Chip>
-              <Chip active={preset === "year"} onClick={() => setPreset("year")}>
-                12 Months
-              </Chip>
-              <Chip active={preset === "custom"} onClick={() => setPreset("custom")}>
-                Custom
-              </Chip>
-            </div>
-
-            {/* Custom dates */}
-            <div className="lg:col-span-4 grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-                <div className="text-[10px] text-slate-400 uppercase">From</div>
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(e) => {
-                    setPreset("custom");
-                    setFrom(e.target.value);
-                  }}
-                  className="w-full bg-transparent outline-none text-sm"
-                />
-              </div>
-              <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-                <div className="text-[10px] text-slate-400 uppercase">To</div>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(e) => {
-                    setPreset("custom");
-                    setTo(e.target.value);
-                  }}
-                  className="w-full bg-transparent outline-none text-sm"
-                />
+            <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-2">
+              <div className="text-[10px] text-slate-400 uppercase mb-2">Date Range</div>
+              <div className="flex flex-wrap gap-2">
+                <Chip active={preset === "today"} onClick={() => setPreset("today")}>
+                  Today
+                </Chip>
+                <Chip active={preset === "week"} onClick={() => setPreset("week")}>
+                  7 Days
+                </Chip>
+                <Chip active={preset === "month"} onClick={() => setPreset("month")}>
+                  30 Days
+                </Chip>
+                <Chip active={preset === "year"} onClick={() => setPreset("year")}>
+                  12 Months
+                </Chip>
+                <Chip active={preset === "custom"} onClick={() => setPreset("custom")}>
+                  Custom
+                </Chip>
               </div>
             </div>
 
-            {/* Method + Type */}
-            <div className="lg:col-span-4 grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-                <div className="text-[10px] text-slate-400 uppercase">Method</div>
-                <select
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm"
-                >
-                  <option value="all">All</option>
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                </select>
+            {/* Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+              <div className="md:col-span-6 grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                  <div className="text-[10px] text-slate-400 uppercase">From</div>
+                  <input
+                    type="date"
+                    value={from}
+                    onChange={(e) => {
+                      setPreset("custom");
+                      setFrom(e.target.value);
+                    }}
+                    className="w-full bg-transparent outline-none text-sm"
+                  />
+                </div>
+                <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                  <div className="text-[10px] text-slate-400 uppercase">To</div>
+                  <input
+                    type="date"
+                    value={to}
+                    onChange={(e) => {
+                      setPreset("custom");
+                      setTo(e.target.value);
+                    }}
+                    className="w-full bg-transparent outline-none text-sm"
+                  />
+                </div>
               </div>
 
-              <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-                <div className="text-[10px] text-slate-400 uppercase">Type</div>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm"
-                >
-                  <option value="all">All</option>
-                  <option value="dine_in">Dine In</option>
-                  <option value="takeaway">Takeaway</option>
-                </select>
+              <div className="md:col-span-6 grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                  <div className="text-[10px] text-slate-400 uppercase">Method</div>
+                  <select
+                    value={method}
+                    onChange={(e) => setMethod(e.target.value)}
+                    className="w-full bg-transparent outline-none text-sm"
+                  >
+                    <option value="all">All</option>
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                  </select>
+                </div>
+
+                <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                  <div className="text-[10px] text-slate-400 uppercase">Type</div>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    className="w-full bg-transparent outline-none text-sm"
+                  >
+                    <option value="all">All</option>
+                    <option value="dine_in">Dine In</option>
+                    <option value="takeaway">Takeaway</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
 
-          {message ? (
-            <div className="text-xs text-amber-300 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-              {message}
-            </div>
-          ) : null}
+            {message ? (
+              <div className="text-xs text-amber-300 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                {message}
+              </div>
+            ) : null}
           </div>
         </div>
       </header>

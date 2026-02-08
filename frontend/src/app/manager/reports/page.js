@@ -531,8 +531,8 @@ export default function ManagerReportsPage() {
     <div className="min-h-screen bg-black text-white flex flex-col overflow-x-hidden">
       {/* TOP BAR */}
       <header className="sticky top-0 z-20 bg-black/80 backdrop-blur border-b border-white/10">
-        <div className="px-4 md:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="px-4 md:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden">
               <img src={logo} alt="Kurda Restaurant" className="w-full h-full object-cover" />
             </div>
@@ -544,7 +544,7 @@ export default function ManagerReportsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {tab === "overview" && (
               <>
                 <button

@@ -169,12 +169,10 @@ class OrdersService {
     if (rules.length === 0) {
       rules = autoSoupRules;
     } else if (autoSoupRules.length > 0) {
-      const hasSoupFree = rules.some((rule) =>
-        (rule.actions?.freeItems || []).some(
-          (action) => action.kind === "category" && action.id === soupCategoryId
-        )
+      const hasDefaultRule = rules.some(
+        (rule) => String(rule.name || "").trim().toLowerCase() === "default soup free rule"
       );
-      if (!hasSoupFree) {
+      if (!hasDefaultRule) {
         rules = normalizeRules([...rules, ...autoSoupRules]);
       }
     }

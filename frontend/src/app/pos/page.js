@@ -358,7 +358,11 @@ export default function PosPage() {
   function applyPricingRulesPreview({ itemsWithMenu, itemsData, rules, ctx, menuItemById }) {
     let workingItems = itemsData.map((x) => ({ ...x }));
     let ruleDiscount = 0;
-    const displayItems = itemsData.map((x) => ({ ...x, isRuleItem: false }));
+    const displayItems = itemsData.map((x) => ({
+      ...x,
+      note: x.notes || "",
+      isRuleItem: false,
+    }));
     let addCount = 0;
 
     for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex += 1) {
@@ -459,13 +463,10 @@ export default function PosPage() {
   const effectiveRules = useMemo(() => {
     if (configuredRules.length === 0) return defaultSoupRules;
     if (defaultSoupRules.length === 0) return configuredRules;
-    const soupCategoryId = defaultSoupRules[0]?.actions?.freeItems?.[0]?.id;
-    const hasSoupFree = configuredRules.some((rule) =>
-      (rule.actions?.freeItems || []).some(
-        (action) => action.kind === "category" && action.id === soupCategoryId
-      )
+    const hasDefaultRule = configuredRules.some(
+      (rule) => String(rule.name || "").trim().toLowerCase() === "default soup free rule"
     );
-    return hasSoupFree ? configuredRules : [...configuredRules, ...defaultSoupRules];
+    return hasDefaultRule ? configuredRules : [...configuredRules, ...defaultSoupRules];
   }, [configuredRules, defaultSoupRules]);
 
   const pricingState = useMemo(() => {
@@ -1696,11 +1697,18 @@ export default function PosPage() {
         </div>
       )}
       {cancelPinOpen && (
-        <div className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-black/90 p-4">
-            <div className="text-lg font-semibold mb-1">Manager PIN Required</div>
-            <div className="text-xs text-white/60 mb-3">
-              Enter a manager PIN to cancel this order.
+        <div className="fixed inset-0 z-[9998] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-black/90 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-10 w-10 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-200 text-sm font-bold">
+                PIN
+              </div>
+              <div>
+                <div className="text-lg font-semibold">Manager PIN Required</div>
+                <div className="text-xs text-white/60">
+                  Enter a manager PIN to cancel this order.
+                </div>
+              </div>
             </div>
             <input
               value={cancelPinValue}
@@ -1999,7 +2007,6 @@ export default function PosPage() {
                   .map((order) => {
                   const isSelected = selectedOrder?.id === order.id;
                   const items = order.items || [];
-                  const itemsPreview = items.slice(0, compactMode ? 2 : 4);
                   return (
                     <button
                       key={order.id}
@@ -2053,24 +2060,21 @@ export default function PosPage() {
                         </div>
                       </div>
 
-                      <div
-                        className={[
-                          "mt-2 space-y-1 text-[11px] text-white/80",
-                          compactMode ? "max-h-28" : "max-h-40",
-                          "overflow-y-auto pr-1",
-                        ].join(" ")}
-                      >
+                      <div className="mt-2 border-t border-white/10 pt-2 space-y-1.5 text-[11px] text-white/85">
                         {items.map((it, idx) => (
-                          <div key={`${it.id || idx}`} className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-white/80">{it.quantity}×</span>{" "}
-                              <span className="inline-block max-w-full whitespace-normal break-words">
-                                {it.menuItem?.name || "Item"}
-                              </span>
-                            </div>
-                            <div className="text-white/50 shrink-0">
+                          <div
+                            key={`${it.id || idx}`}
+                            className="grid grid-cols-[auto,1fr,auto] items-start gap-2"
+                          >
+                            <span className="mt-0.5 inline-flex min-w-[28px] justify-center rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-semibold">
+                              {it.quantity}×
+                            </span>
+                            <span className="min-w-0 whitespace-normal break-words">
+                              {it.menuItem?.name || "Item"}
+                            </span>
+                            <span className="text-white/60 tabular-nums">
                               £{Number(it.totalPrice || 0).toFixed(2)}
-                            </div>
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -2996,7 +3000,7 @@ export default function PosPage() {
 
                           <input
                             type="text"
-                            value={item.note || ""}
+                            value={(item.note ?? item.notes) || ""}
                             onChange={(e) =>
                               setCart((prev) =>
                                 prev.map((c, i) =>

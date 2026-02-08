@@ -310,6 +310,7 @@ export default function ManagerReportsPage() {
   const { settings } = useSettings();
   const logo = resolveMediaUrl(settings?.logoUrl) || "/logo.png";
   const [user, setUser] = useState(null);
+  const [navOpen, setNavOpen] = useState(false);
 
   // Tabs
   const [tab, setTab] = useState("overview"); // overview | items | staff | alerts
@@ -545,6 +546,16 @@ export default function ManagerReportsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setNavOpen((v) => !v)}
+              className="lg:hidden px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              type="button"
+            >
+              Menu
+            </button>
+          </div>
+
+          <div className="hidden lg:flex flex-wrap items-center gap-2">
             {tab === "overview" && (
               <>
                 <button
@@ -649,6 +660,115 @@ export default function ManagerReportsPage() {
             </button>
           </div>
         </div>
+
+        {navOpen && (
+          <div className="lg:hidden px-4 md:px-6 pb-3">
+            <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 flex flex-wrap gap-2">
+              {tab === "overview" && (
+                <>
+                  <button
+                    onClick={exportOverviewCsv}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    onClick={exportOverviewPdf}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                  >
+                    Export PDF
+                  </button>
+                </>
+              )}
+              {tab === "staff" && (
+                <>
+                  <button
+                    onClick={exportStaffCsv}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    onClick={exportStaffPdf}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                  >
+                    Export PDF
+                  </button>
+                </>
+              )}
+              {tab === "alerts" && (
+                <>
+                  <button
+                    onClick={exportAlertsCsv}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    onClick={exportAlertsPdf}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                  >
+                    Export PDF
+                  </button>
+                </>
+              )}
+              <a
+                href="/manager/menu"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                Menu
+              </a>
+              <a
+                href="/manager/orders"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                Orders
+              </a>
+              <a
+                href="/manager/tables"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                Tables
+              </a>
+              <a
+                href="/manager/users"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                Users
+              </a>
+              <a
+                href="/manager/settings"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                Settings
+              </a>
+              <a
+                href="/manager/promotions"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                Promotions
+              </a>
+              <a
+                href="/pos"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                POS
+              </a>
+              <button
+                onClick={refreshAll}
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={logout}
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* FILTER BAR */}
         <div className="px-4 md:px-6 pb-3">

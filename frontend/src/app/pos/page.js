@@ -2064,16 +2064,13 @@ export default function PosPage() {
                         {items.map((it, idx) => (
                           <div
                             key={`${it.id || idx}`}
-                            className="grid grid-cols-[auto,1fr,auto] items-start gap-2"
+                            className="grid grid-cols-[1fr,auto] items-start gap-2"
                           >
-                            <span className="mt-0.5 inline-flex min-w-[28px] justify-center rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-semibold">
-                              {it.quantity}×
-                            </span>
-                            <span className="min-w-0 whitespace-normal break-words">
+                            <span className="min-w-0 whitespace-normal break-words text-white/90">
                               {it.menuItem?.name || "Item"}
                             </span>
-                            <span className="text-white/60 tabular-nums">
-                              £{Number(it.totalPrice || 0).toFixed(2)}
+                            <span className="text-white/70 tabular-nums whitespace-nowrap">
+                              {it.quantity}×
                             </span>
                           </div>
                         ))}

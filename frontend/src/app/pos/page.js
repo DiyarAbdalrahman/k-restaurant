@@ -2633,6 +2633,26 @@ export default function PosPage() {
                     </div>
                   )}
 
+                  {paymentMethod === "cash" && paymentAmount !== "" && (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+                      {Number(paymentAmount || 0) >= Number(checkoutTotals.remaining || 0) ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Change due</span>
+                          <span className="font-semibold text-emerald-200">
+                            £{Math.max(0, Number(paymentAmount || 0) - Number(checkoutTotals.remaining || 0)).toFixed(2)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Remaining</span>
+                          <span className="font-semibold text-amber-200">
+                            £{Math.max(0, Number(checkoutTotals.remaining || 0) - Number(paymentAmount || 0)).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <button
                     onClick={() => addPayment()}
                     disabled={isPaying || paymentAmount === ""}

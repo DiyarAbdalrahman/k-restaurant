@@ -873,6 +873,12 @@ export default function PosPage() {
     if (typeof settings.defaultTaxPercent === "number") {
       setTaxPercent(settings.defaultTaxPercent);
     }
+    if (settings.posShowServiceCharge === false) {
+      setServiceChargePercent(0);
+    }
+    if (settings.posShowTax === false) {
+      setTaxPercent(0);
+    }
     if (typeof settings.paymentDefaultMethod === "string") {
       setPaymentMethod(settings.paymentDefaultMethod);
     }
@@ -1527,6 +1533,29 @@ export default function PosPage() {
     }
   }
 
+  async function cancelOpenOrder(order) {
+    const ok = await askConfirm({
+      title: "Cancel order?",
+      body: "This will cancel the order and remove it from Open Orders.",
+      confirmText: "Cancel order",
+      cancelText: "Back",
+    });
+    if (!ok) return;
+
+    const pin = window.prompt("Enter manager PIN");
+    if (!pin) return;
+
+    try {
+      await api.post(`/orders/${order.id}/cancel`, { managerPin: String(pin) });
+      toast.success("Order cancelled");
+      if (selectedOrder?.id === order.id) setSelectedOrder(null);
+      await loadOrders();
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to cancel order";
+      toast.error(msg);
+    }
+  }
+
   async function confirmLeaveUnpaid() {
     if (!selectedOrder) return true;
     if (checkoutTotals.paid > 0.001 && checkoutTotals.remaining > 0.001) {
@@ -2031,6 +2060,18 @@ export default function PosPage() {
                         >
                           Edit order
                         </button>
+                        {order.status !== "paid" && order.status !== "cancelled" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelOpenOrder(order);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-amber-500/80 hover:bg-amber-500"
+                          >
+                            Cancel
+                          </button>
+                        )}
                         {user?.role === "admin" && (
                           <button
                             type="button"

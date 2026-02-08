@@ -706,6 +706,27 @@ class OrdersService {
   return updated;
 }
 
+  async cancelOrder(id) {
+    const order = await prisma.order.findFirst({
+      where: { id, isDeleted: false },
+      include: { payments: true },
+    });
+    if (!order) return null;
+    if (order.status === "paid" || order.status === "cancelled") {
+      throw new Error("Cannot cancel a closed order.");
+    }
+    return prisma.order.update({
+      where: { id },
+      data: { status: "cancelled" },
+      include: {
+        items: { include: { menuItem: true } },
+        table: true,
+        payments: true,
+        openedByUser: { select: { id: true, fullName: true, username: true, role: true } },
+      },
+    });
+  }
+
   // LIST HISTORY (admin/manager)
   async listHistory({ from, to, q, status, limit = 200, includeDeleted = false }) {
     const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);

@@ -6,7 +6,7 @@ const {
   requireRole,
 } = require("../../middleware/auth.middleware");
 const { validateBody } = require("../../middleware/validate.middleware");
-const { orderCreateSchema, orderStatusSchema, orderAddItemsSchema, orderUpdateItemsSchema } = require("../../validation/schemas");
+const { orderCreateSchema, orderStatusSchema, orderAddItemsSchema, orderUpdateItemsSchema, orderCancelSchema } = require("../../validation/schemas");
 
 const ordersRouter = Router();
 
@@ -68,6 +68,13 @@ ordersRouter.post(
   "/:id/send-to-kitchen",
   requireRole("waiter", "admin", "pos"),
   (req, res, next) => ordersController.sendToKitchen(req, res, next)
+);
+
+ordersRouter.post(
+  "/:id/cancel",
+  requireRole("waiter", "admin", "manager", "pos"),
+  validateBody(orderCancelSchema),
+  (req, res, next) => ordersController.cancel(req, res, next)
 );
 
 ordersRouter.post(

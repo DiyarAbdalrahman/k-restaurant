@@ -4,6 +4,7 @@ const { printKitchenTicket, printCustomerReceipt } = require("../../services/pri
 const { normalizeRules, applyPrintRules } = require("../../services/rules.service");
 const prisma = require("../../db/prisma");
 const { emitOrderUpdated } = require("../kitchen/kitchen.gateway");
+const bcrypt = require("bcryptjs");
 
 
 class OrdersController {
@@ -95,6 +96,45 @@ class OrdersController {
         "sent_to_kitchen"
       );
       emitOrderUpdated(updated); // ✅ notify POS + kitchen
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async cancel(req, res, next) {
+    try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+      const { managerPin } = req.body || {};
+      if (!managerPin || String(managerPin).length !== 4) {
+        return res.status(403).json({ message: "Manager PIN required" });
+      }
+
+      const managers = await prisma.user.findMany({
+        where: {
+          role: { in: ["admin", "manager"] },
+          isActive: true,
+          pinHash: { not: null },
+        },
+      });
+      if (!managers.length) {
+        return res.status(403).json({ message: "No manager PINs available" });
+      }
+
+      let pinOk = false;
+      for (const manager of managers) {
+        if (await bcrypt.compare(String(managerPin), manager.pinHash)) {
+          pinOk = true;
+          break;
+        }
+      }
+      if (!pinOk) return res.status(403).json({ message: "Invalid manager PIN" });
+
+      const updated = await ordersService.cancelOrder(req.params.id);
+      if (!updated) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      emitOrderUpdated(updated);
       res.json(updated);
     } catch (err) {
       next(err);

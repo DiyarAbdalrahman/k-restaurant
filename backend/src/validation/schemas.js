@@ -61,6 +61,10 @@ const orderUpdateItemsSchema = z.object({
   sendToKitchen: z.boolean().optional().default(true),
 });
 
+const orderCancelSchema = z.object({
+  managerPin: z.string().min(4).max(4),
+});
+
 const paymentSchema = z.object({
   amount: numFromString(z.number().min(0)),
   method: z.enum(["cash", "card"]),
@@ -224,6 +228,7 @@ module.exports = {
   orderStatusSchema,
   orderAddItemsSchema,
   orderUpdateItemsSchema,
+  orderCancelSchema,
   paymentSchema,
   authLoginSchema,
   authRegisterSchema,

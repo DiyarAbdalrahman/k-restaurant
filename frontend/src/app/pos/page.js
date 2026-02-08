@@ -147,22 +147,22 @@ export default function PosPage() {
   }
 
   const menuItemsFlat = useMemo(() => {
-    return (menu || []).flatMap((c) =>
+    return (orderedMenu || []).flatMap((c) =>
       (c.items || []).map((it) => ({
         ...it,
         categoryId: c.id,
         categoryName: c.name,
       }))
     );
-  }, [menu]);
+  }, [orderedMenu]);
 
   const menuItemById = useMemo(() => {
     return new Map(menuItemsFlat.map((it) => [it.id, it]));
   }, [menuItemsFlat]);
 
   const categoryById = useMemo(() => {
-    return new Map((menu || []).map((c) => [c.id, c]));
-  }, [menu]);
+    return new Map((orderedMenu || []).map((c) => [c.id, c]));
+  }, [orderedMenu]);
 
   function isSoupCategoryName(name) {
     const n = String(name || "").trim().toLowerCase();
@@ -172,6 +172,52 @@ export default function PosPage() {
     if (n.includes("شله")) return true;
     return false;
   }
+
+  const orderedMenu = useMemo(() => {
+    const source = Array.isArray(menu) ? [...menu] : [];
+    const byId = new Map(source.map((c) => [c.id, c]));
+    const orderedIds = Array.isArray(settings?.posCategoryOrder)
+      ? settings.posCategoryOrder
+      : [];
+    const used = new Set();
+    const ordered = [];
+    orderedIds.forEach((id) => {
+      const found = byId.get(id);
+      if (found) {
+        ordered.push(found);
+        used.add(id);
+      }
+    });
+    if (ordered.length === 0) {
+      const normalize = (value) =>
+        String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
+      const priority = [
+        (c) => normalize(c.name).includes("main"),
+        (c) => normalize(c.name).includes("grill"),
+        (c) =>
+          normalize(c.name).includes("soup") ||
+          normalize(c.name).includes("shle") ||
+          String(c.name || "").includes("شله"),
+        (c) =>
+          normalize(c.name).includes("drink") ||
+          normalize(c.name).includes("drinks"),
+      ];
+      priority.forEach((matcher) => {
+        const match = source.find((c) => !used.has(c.id) && matcher(c));
+        if (match) {
+          ordered.push(match);
+          used.add(match.id);
+        }
+      });
+    }
+    const remaining = source
+      .filter((c) => !used.has(c.id))
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+    return [...ordered, ...remaining];
+  }, [menu, settings?.posCategoryOrder]);
 
   const DEFAULT_SOUP_FREE_NAMES = [
     "Chicken Qozi",
@@ -430,7 +476,7 @@ export default function PosPage() {
     const qualifyingIds = menuItemsFlat
       .filter((it) => defaultSoupFreeSet.has(normalizeName(it.name)))
       .map((it) => it.id);
-    const soupCategoryIds = (menu || [])
+    const soupCategoryIds = (orderedMenu || [])
       .filter((c) => isSoupCategoryName(c.name))
       .map((c) => c.id);
     const soupCategoryId = soupCategoryIds[0];
@@ -457,7 +503,7 @@ export default function PosPage() {
         },
       },
     ];
-  }, [menu, menuItemsFlat, defaultSoupFreeSet]);
+  }, [orderedMenu, menuItemsFlat, defaultSoupFreeSet]);
 
   const configuredRules = useMemo(() => normalizeRules(settings?.rules), [settings?.rules]);
   const effectiveRules = useMemo(() => {
@@ -561,7 +607,7 @@ export default function PosPage() {
     };
   }, [
     cart,
-    menu,
+    orderedMenu,
     menuItemsFlat,
     menuItemById,
     categoryById,
@@ -645,25 +691,31 @@ export default function PosPage() {
   const ALL_CAT_ID = "__all__";
 
   const displayCategories = useMemo(() => {
-    const list = menu || [];
+    const list = orderedMenu || [];
     const filtered = catSearch.trim()
       ? list.filter((c) =>
           String(c.name || "").toLowerCase().includes(catSearch.trim().toLowerCase())
         )
       : list;
     return [{ id: ALL_CAT_ID, name: "All Items", items: [] }, ...filtered];
-  }, [menu, catSearch]);
+  }, [orderedMenu, catSearch]);
 
   const activeCategory = useMemo(() => {
-    if (!menu?.length) return null;
+    if (!orderedMenu?.length) return null;
     if (activeCatId === ALL_CAT_ID) return { id: ALL_CAT_ID, name: "All Items", items: [] };
-    return menu.find((c) => c.id === activeCatId) || { id: ALL_CAT_ID, name: "All Items", items: [] };
-  }, [menu, activeCatId]);
+    return (
+      orderedMenu.find((c) => c.id === activeCatId) || {
+        id: ALL_CAT_ID,
+        name: "All Items",
+        items: [],
+      }
+    );
+  }, [orderedMenu, activeCatId]);
 
   const visibleItems = useMemo(() => {
     let items = [];
     if (activeCategory?.id === ALL_CAT_ID) {
-      for (const cat of menu || []) {
+      for (const cat of orderedMenu || []) {
         for (const it of cat.items || []) items.push(it);
       }
       items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
@@ -672,27 +724,27 @@ export default function PosPage() {
     }
     if (!normalizedSearch) return items;
     const all = [];
-    for (const cat of menu || []) {
+    for (const cat of orderedMenu || []) {
       for (const it of cat.items || []) all.push(it);
     }
     return all.filter((it) => String(it.name || "").toLowerCase().includes(normalizedSearch));
-  }, [activeCategory, normalizedSearch, menu]);
+  }, [activeCategory, normalizedSearch, orderedMenu]);
 
   const categoryShortcuts = useMemo(() => {
     const preferred = ["Mains", "Drinks", "Sides", "Salads", "Desserts"];
-    const byName = new Map((menu || []).map((c) => [String(c.name || ""), c]));
+    const byName = new Map((orderedMenu || []).map((c) => [String(c.name || ""), c]));
     const picked = preferred.map((n) => byName.get(n)).filter(Boolean);
     if (picked.length > 0) return picked;
-    return (menu || []).slice(0, 5);
-  }, [menu]);
+    return (orderedMenu || []).slice(0, 5);
+  }, [orderedMenu]);
 
   const allItemsById = useMemo(() => {
     const map = new Map();
-    for (const cat of menu || []) {
+    for (const cat of orderedMenu || []) {
       for (const it of cat.items || []) map.set(it.id, it);
     }
     return map;
-  }, [menu]);
+  }, [orderedMenu]);
 
   const favoriteItems = useMemo(() => {
     return favorites.map((id) => allItemsById.get(id)).filter(Boolean);

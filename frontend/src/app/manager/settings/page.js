@@ -70,6 +70,7 @@ export default function ManagerSettingsPage() {
     posShowDiscounts: true,
     posShowServiceCharge: true,
     posShowTax: true,
+    posCategoryOrder: [],
     posMenuCardSize: "md",
     paymentDefaultMethod: "cash",
     paymentAllowOverpay: false,
@@ -178,6 +179,41 @@ export default function ManagerSettingsPage() {
   const menuCategories = useMemo(() => {
     return (menuData || []).map((c) => ({ id: c.id, name: c.name }));
   }, [menuData]);
+
+  const orderedCategoryIds = Array.isArray(form.posCategoryOrder)
+    ? form.posCategoryOrder
+    : [];
+  const orderedCategories = orderedCategoryIds
+    .map((id) => menuCategories.find((c) => c.id === id))
+    .filter(Boolean);
+  const remainingCategories = menuCategories.filter(
+    (c) => !orderedCategoryIds.includes(c.id)
+  );
+
+  function setDefaultCategoryOrder() {
+    const normalize = (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+    const main = menuCategories.find((c) => normalize(c.name).includes("main"));
+    const grill = menuCategories.find((c) => normalize(c.name).includes("grill"));
+    const soup = menuCategories.find(
+      (c) =>
+        normalize(c.name).includes("soup") ||
+        normalize(c.name).includes("shle") ||
+        String(c.name || "").includes("شله")
+    );
+    const drink = menuCategories.find(
+      (c) =>
+        normalize(c.name).includes("drink") ||
+        normalize(c.name).includes("drinks")
+    );
+    const order = [main, grill, soup, drink]
+      .filter(Boolean)
+      .map((c) => c.id);
+    setForm((prev) => ({ ...prev, posCategoryOrder: order }));
+  }
 
   const menuItems = useMemo(() => {
     const items = [];
@@ -807,6 +843,105 @@ export default function ManagerSettingsPage() {
                       className={toggleInput}
                     />
                   </label>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold">Category order</div>
+                        <div className="text-xs text-white/60">
+                          Choose which categories appear first in POS.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={setDefaultCategoryOrder}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 hover:bg-white/15"
+                      >
+                        Main → Grill → Soup → Drink
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {orderedCategories.length === 0 ? (
+                        <div className="text-xs text-white/50">
+                          No custom order set. POS will use the default.
+                        </div>
+                      ) : (
+                        orderedCategories.map((c, idx) => (
+                          <div
+                            key={c.id}
+                            className="flex items-center justify-between gap-2 rounded-xl bg-black/30 border border-white/10 px-3 py-2"
+                          >
+                            <div className="text-sm font-semibold">{c.name}</div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (idx === 0) return;
+                                  const next = [...orderedCategoryIds];
+                                  const temp = next[idx - 1];
+                                  next[idx - 1] = next[idx];
+                                  next[idx] = temp;
+                                  setForm((prev) => ({ ...prev, posCategoryOrder: next }));
+                                }}
+                                className="px-2 py-1 text-xs rounded-lg bg-white/10 border border-white/10"
+                              >
+                                Up
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (idx === orderedCategoryIds.length - 1) return;
+                                  const next = [...orderedCategoryIds];
+                                  const temp = next[idx + 1];
+                                  next[idx + 1] = next[idx];
+                                  next[idx] = temp;
+                                  setForm((prev) => ({ ...prev, posCategoryOrder: next }));
+                                }}
+                                className="px-2 py-1 text-xs rounded-lg bg-white/10 border border-white/10"
+                              >
+                                Down
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = orderedCategoryIds.filter((id) => id !== c.id);
+                                  setForm((prev) => ({ ...prev, posCategoryOrder: next }));
+                                }}
+                                className="px-2 py-1 text-xs rounded-lg bg-red-600/80 hover:bg-red-600"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {remainingCategories.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            if (!id) return;
+                            setForm((prev) => ({
+                              ...prev,
+                              posCategoryOrder: [...orderedCategoryIds, id],
+                            }));
+                          }}
+                          className={`${inputBase} text-sm`}
+                        >
+                          <option value="">Add category…</option>
+                          {remainingCategories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-white/50">
+                          Add more to the top list.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <label className={labelText}>

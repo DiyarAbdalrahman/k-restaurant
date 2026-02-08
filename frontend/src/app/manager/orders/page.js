@@ -260,12 +260,11 @@ export default function ManagerOrdersPage() {
 
         <div className="rounded-2xl bg-white/[0.04] border border-white/10 overflow-hidden">
           <div className="hidden md:grid grid-cols-12 px-4 py-3 border-b border-white/10 text-[11px] uppercase tracking-wide text-slate-400">
-            <div className="col-span-3">Order</div>
+            <div className="col-span-4">Order</div>
             <div className="col-span-2">Type</div>
             <div className="col-span-2">Status</div>
             <div className="col-span-2 text-right">Total</div>
-            <div className="col-span-2">Cashier</div>
-            <div className="col-span-1 text-right">Action</div>
+            <div className="col-span-2 text-right">Action</div>
           </div>
           <div className="max-h-[70vh] overflow-y-auto">
             {rows.length === 0 ? (
@@ -281,9 +280,17 @@ export default function ManagerOrdersPage() {
                     o.isDeleted ? "opacity-60" : "",
                   ].join(" ")}
                 >
-                  <div className="md:col-span-3">
-                    <div className="font-semibold">#{String(o.id).slice(0, 8)}</div>
+                  <div className="md:col-span-4">
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold">#{String(o.id).slice(0, 8)}</div>
+                      <span className="rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide border border-white/10 text-white/60">
+                        {o.type === "dine_in" ? "Dine In" : "Takeaway"}
+                      </span>
+                    </div>
                     <div className="text-xs text-white/60">{new Date(o.createdAt).toLocaleString()}</div>
+                    <div className="text-xs text-white/60">
+                      {o.openedByUser?.fullName || o.openedByUser?.username || "-"}
+                    </div>
                   </div>
                   <div className="md:col-span-2 text-xs text-white/70">
                     <div className="md:hidden text-[10px] uppercase text-slate-500">Type</div>
@@ -291,17 +298,24 @@ export default function ManagerOrdersPage() {
                   </div>
                   <div className="md:col-span-2 text-xs text-white/70">
                     <div className="md:hidden text-[10px] uppercase text-slate-500">Status</div>
-                    {o.status}
+                    <span
+                      className={[
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border",
+                        o.status === "paid"
+                          ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
+                          : o.status === "cancelled"
+                          ? "bg-red-500/15 border-red-500/40 text-red-200"
+                          : "bg-amber-500/10 border-amber-500/40 text-amber-200",
+                      ].join(" ")}
+                    >
+                      {o.status}
+                    </span>
                   </div>
                   <div className="md:col-span-2 md:text-right font-semibold">
                     <div className="md:hidden text-[10px] uppercase text-slate-500">Total</div>
                     {formatGBP(o.total)}
                   </div>
-                  <div className="md:col-span-2 text-xs text-white/70">
-                    <div className="md:hidden text-[10px] uppercase text-slate-500">Cashier</div>
-                    {o.openedByUser?.fullName || o.openedByUser?.username || "-"}
-                  </div>
-                  <div className="md:col-span-1 md:text-right">
+                  <div className="md:col-span-2 md:text-right">
                     <div className="md:hidden text-[10px] uppercase text-slate-500">Action</div>
                     {user.role === "admin" ? (
                       <button

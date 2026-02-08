@@ -35,6 +35,7 @@ export default function ManagerOrdersPage() {
   const { settings } = useSettings();
   const logo = resolveMediaUrl(settings?.logoUrl) || "/logo.png";
   const [user, setUser] = useState(null);
+  const [navOpen, setNavOpen] = useState(false);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -136,6 +137,15 @@ export default function ManagerOrdersPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setNavOpen((v) => !v)}
+              className="lg:hidden px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+              type="button"
+            >
+              Menu
+            </button>
+          </div>
+          <div className="hidden lg:flex flex-wrap gap-2">
             <a href="/manager/reports" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Reports</a>
             <a href="/manager/menu" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Menu</a>
             <a href="/manager/tables" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Tables</a>
@@ -146,6 +156,20 @@ export default function ManagerOrdersPage() {
             <button onClick={logout} className="px-3 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500">Logout</button>
           </div>
         </div>
+        {navOpen && (
+          <div className="lg:hidden px-4 md:px-6 pb-3">
+            <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 flex flex-wrap gap-2">
+              <a href="/manager/reports" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Reports</a>
+              <a href="/manager/menu" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Menu</a>
+              <a href="/manager/tables" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Tables</a>
+              <a href="/manager/users" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Users</a>
+              <a href="/manager/settings" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Settings</a>
+              <a href="/manager/promotions" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">Promotions</a>
+              <a href="/pos" className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">POS</a>
+              <button onClick={logout} className="px-3 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500">Logout</button>
+            </div>
+          </div>
+        )}
         {message && (
           <div className="px-4 md:px-6 pb-3 text-xs text-amber-300">
             {message}
@@ -154,79 +178,88 @@ export default function ManagerOrdersPage() {
       </header>
 
       <div className="px-4 md:px-6 py-5 space-y-3">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
-          <div className="lg:col-span-3 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-            <div className="text-[10px] text-slate-400 uppercase">From</div>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="w-full bg-transparent outline-none text-sm"
-            />
+        <div className="rounded-3xl bg-white/[0.04] border border-white/10 p-3 md:p-4">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+            <div className="md:col-span-4 grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                <div className="text-[10px] text-slate-400 uppercase">From</div>
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="w-full bg-transparent outline-none text-sm"
+                />
+              </div>
+              <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                <div className="text-[10px] text-slate-400 uppercase">To</div>
+                <input
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="w-full bg-transparent outline-none text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-3 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+              <div className="text-[10px] text-slate-400 uppercase">Status</div>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full bg-transparent outline-none text-sm"
+              >
+                <option value="all">All</option>
+                <option value="open">Open</option>
+                <option value="sent_to_kitchen">Sent</option>
+                <option value="in_progress">In Progress</option>
+                <option value="ready">Ready</option>
+                <option value="served">Served</option>
+                <option value="paid">Paid</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+              <div className="text-[10px] text-slate-400 uppercase">Limit</div>
+              <select
+                value={String(limit)}
+                onChange={(e) => setLimit(Number(e.target.value))}
+                className="w-full bg-transparent outline-none text-sm"
+              >
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="300">300</option>
+                <option value="500">500</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-[1fr,auto] gap-2">
+              <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                <div className="text-[10px] text-slate-400 uppercase">Order ID</div>
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") loadHistory();
+                  }}
+                  placeholder="Prefix"
+                  className="w-full bg-transparent outline-none text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={showDeleted}
+                  onChange={(e) => setShowDeleted(e.target.checked)}
+                />
+                Show archived
+              </label>
+            </div>
           </div>
-          <div className="lg:col-span-3 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-            <div className="text-[10px] text-slate-400 uppercase">To</div>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="w-full bg-transparent outline-none text-sm"
-            />
-          </div>
-          <div className="lg:col-span-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-            <div className="text-[10px] text-slate-400 uppercase">Status</div>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full bg-transparent outline-none text-sm"
-            >
-              <option value="all">All</option>
-              <option value="open">Open</option>
-              <option value="sent_to_kitchen">Sent</option>
-              <option value="in_progress">In Progress</option>
-              <option value="ready">Ready</option>
-              <option value="served">Served</option>
-              <option value="paid">Paid</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div className="lg:col-span-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-            <div className="text-[10px] text-slate-400 uppercase">Limit</div>
-            <select
-              value={String(limit)}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="w-full bg-transparent outline-none text-sm"
-            >
-              <option value="100">100</option>
-              <option value="200">200</option>
-              <option value="300">300</option>
-              <option value="500">500</option>
-            </select>
-          </div>
-          <div className="lg:col-span-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-            <div className="text-[10px] text-slate-400 uppercase">Order ID</div>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") loadHistory();
-              }}
-              placeholder="Prefix"
-              className="w-full bg-transparent outline-none text-sm"
-            />
-          </div>
-          <label className="lg:col-span-2 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white/70">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(e) => setShowDeleted(e.target.checked)}
-            />
-            Show archived
-          </label>
         </div>
 
         <div className="rounded-2xl bg-white/[0.04] border border-white/10 overflow-hidden">
-          <div className="grid grid-cols-12 px-4 py-3 border-b border-white/10 text-[11px] uppercase tracking-wide text-slate-400">
+          <div className="hidden md:grid grid-cols-12 px-4 py-3 border-b border-white/10 text-[11px] uppercase tracking-wide text-slate-400">
             <div className="col-span-3">Order</div>
             <div className="col-span-2">Type</div>
             <div className="col-span-2">Status</div>
@@ -244,25 +277,32 @@ export default function ManagerOrdersPage() {
                 <div
                   key={o.id}
                   className={[
-                    "grid grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03] text-sm",
+                    "grid grid-cols-1 md:grid-cols-12 px-4 py-3 border-b border-white/5 hover:bg-white/[0.03] text-sm gap-2 md:gap-0",
                     o.isDeleted ? "opacity-60" : "",
                   ].join(" ")}
                 >
-                  <div className="col-span-3">
+                  <div className="md:col-span-3">
                     <div className="font-semibold">#{String(o.id).slice(0, 8)}</div>
                     <div className="text-xs text-white/60">{new Date(o.createdAt).toLocaleString()}</div>
                   </div>
-                  <div className="col-span-2 text-xs text-white/70">
+                  <div className="md:col-span-2 text-xs text-white/70">
+                    <div className="md:hidden text-[10px] uppercase text-slate-500">Type</div>
                     {o.type === "dine_in" ? `Table ${o.table?.name || "?"}` : "Takeaway"}
                   </div>
-                  <div className="col-span-2 text-xs text-white/70">{o.status}</div>
-                  <div className="col-span-2 text-right font-semibold">
+                  <div className="md:col-span-2 text-xs text-white/70">
+                    <div className="md:hidden text-[10px] uppercase text-slate-500">Status</div>
+                    {o.status}
+                  </div>
+                  <div className="md:col-span-2 md:text-right font-semibold">
+                    <div className="md:hidden text-[10px] uppercase text-slate-500">Total</div>
                     {formatGBP(o.total)}
                   </div>
-                  <div className="col-span-2 text-xs text-white/70">
+                  <div className="md:col-span-2 text-xs text-white/70">
+                    <div className="md:hidden text-[10px] uppercase text-slate-500">Cashier</div>
                     {o.openedByUser?.fullName || o.openedByUser?.username || "-"}
                   </div>
-                  <div className="col-span-1 text-right">
+                  <div className="md:col-span-1 md:text-right">
+                    <div className="md:hidden text-[10px] uppercase text-slate-500">Action</div>
                     {user.role === "admin" ? (
                       <button
                         onClick={() => deleteOrder(o.id)}

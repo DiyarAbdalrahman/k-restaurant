@@ -84,6 +84,10 @@ export default function PosPage() {
     cancelText: "Cancel",
   });
   const confirmResolverRef = useRef(null);
+  const [cancelPinOpen, setCancelPinOpen] = useState(false);
+  const [cancelPinOrder, setCancelPinOrder] = useState(null);
+  const [cancelPinValue, setCancelPinValue] = useState("");
+  const [cancelPinLoading, setCancelPinLoading] = useState(false);
 
   // Discounts (used ONLY when building a new order from cart)
   const [discountType, setDiscountType] = useState("none");
@@ -1542,18 +1546,9 @@ export default function PosPage() {
     });
     if (!ok) return;
 
-    const pin = window.prompt("Enter manager PIN");
-    if (!pin) return;
-
-    try {
-      await api.post(`/orders/${order.id}/cancel`, { managerPin: String(pin) });
-      toast.success("Order cancelled");
-      if (selectedOrder?.id === order.id) setSelectedOrder(null);
-      await loadOrders();
-    } catch (err) {
-      const msg = err?.response?.data?.message || "Failed to cancel order";
-      toast.error(msg);
-    }
+    setCancelPinValue("");
+    setCancelPinOrder(order);
+    setCancelPinOpen(true);
   }
 
   async function confirmLeaveUnpaid() {
@@ -1697,6 +1692,60 @@ export default function PosPage() {
             >
               {unlocking ? "Unlocking..." : "Unlock"}
             </button>
+          </div>
+        </div>
+      )}
+      {cancelPinOpen && (
+        <div className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-black/90 p-4">
+            <div className="text-lg font-semibold mb-1">Manager PIN Required</div>
+            <div className="text-xs text-white/60 mb-3">
+              Enter a manager PIN to cancel this order.
+            </div>
+            <input
+              value={cancelPinValue}
+              onChange={(e) => setCancelPinValue(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              placeholder="4-digit PIN"
+              className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm outline-none"
+              inputMode="numeric"
+            />
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => {
+                  if (cancelPinLoading) return;
+                  setCancelPinOpen(false);
+                  setCancelPinOrder(null);
+                }}
+                className="flex-1 rounded-xl py-2 text-sm font-semibold bg-white/10 hover:bg-white/15 border border-white/10"
+              >
+                Back
+              </button>
+              <button
+                onClick={async () => {
+                  if (!cancelPinOrder || cancelPinValue.length !== 4) return;
+                  setCancelPinLoading(true);
+                  try {
+                    await api.post(`/orders/${cancelPinOrder.id}/cancel`, {
+                      managerPin: String(cancelPinValue),
+                    });
+                    toast.success("Order cancelled");
+                    if (selectedOrder?.id === cancelPinOrder.id) setSelectedOrder(null);
+                    setCancelPinOpen(false);
+                    setCancelPinOrder(null);
+                    await loadOrders();
+                  } catch (err) {
+                    const msg = err?.response?.data?.message || "Failed to cancel order";
+                    toast.error(msg);
+                  } finally {
+                    setCancelPinLoading(false);
+                  }
+                }}
+                disabled={cancelPinValue.length !== 4 || cancelPinLoading}
+                className="flex-1 rounded-xl py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:bg-white/10 disabled:text-white/40"
+              >
+                {cancelPinLoading ? "Cancelling..." : "Cancel order"}
+              </button>
+            </div>
           </div>
         </div>
       )}

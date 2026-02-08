@@ -2003,21 +2003,6 @@ export default function PosPage() {
                         >
                           Edit order
                         </button>
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!(await confirmLeaveUnpaid())) return;
-                            setSelectedOrder(order);
-                            if (settings?.posAutoOpenCheckout !== false) {
-                              setShowRight(true);
-                            }
-                            setSelectedTableId(order?.table?.id || order?.tableId || null);
-                          }}
-                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-white/10 border border-white/10 hover:bg-white/15"
-                        >
-                          Checkout
-                        </button>
                         {user?.role === "admin" && (
                           <button
                             type="button"
